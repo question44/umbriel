@@ -663,6 +663,8 @@ namespace umbriel {
     std::optional<double> dimBehind;
     std::optional<double> ignoreAlpha;
     std::optional<bool> optimized;
+    // Blur only what lies under the surface, never what lies beside it.
+    std::optional<bool> blurContain;
     // A backdrop preset drawn by the surface's blur node in place of its blur; "off" disables it.
     std::optional<std::string> backdropEffect;
 
@@ -676,6 +678,7 @@ namespace umbriel {
           && dimBehind == other.dimBehind
           && ignoreAlpha == other.ignoreAlpha
           && optimized == other.optimized
+          && blurContain == other.blurContain
           && backdropEffect == other.backdropEffect;
     }
   };
@@ -686,6 +689,7 @@ namespace umbriel {
     std::optional<double> dimBehind;
     std::optional<double> ignoreAlpha;
     std::optional<bool> optimized;
+    std::optional<bool> blurContain;
     std::optional<std::string> backdropEffect;
     bool operator==(const ResolvedLayerRule&) const = default;
   };

@@ -2720,9 +2720,24 @@ static void render_blur_segments(
   const int sample_width = options->texture->width / sample_divisor + (options->texture->width % sample_divisor != 0);
   const int sample_height =
       options->texture->height / sample_divisor + (options->texture->height % sample_divisor != 0);
+  float bounds_x0 = 0.5F, bounds_y0 = 0.5F;
+  float bounds_x1 = sample_width - 0.5F, bounds_y1 = sample_height - 0.5F;
+  // Contained blur: the first downsample reads only the sample box (edge
+  // texels repeat past it). Every later level is built from that one, so
+  // nothing outside the box reaches the result.
+  if (sample_divisor == 1 && shader == &renderer->shaders.blur1 && !wlr_box_empty(&fx_options->sample_box)) {
+    struct wlr_box box;
+    const struct wlr_box full = {0, 0, sample_width, sample_height};
+    if (wlr_box_intersection(&box, &fx_options->sample_box, &full)) {
+      bounds_x0 = box.x + 0.5F;
+      bounds_y0 = box.y + 0.5F;
+      bounds_x1 = box.x + box.width - 0.5F;
+      bounds_y1 = box.y + box.height - 0.5F;
+    }
+  }
   glUniform4f(
-      shader->sample_bounds, 0.5F / options->texture->width, 0.5F / options->texture->height,
-      (sample_width - 0.5F) / options->texture->width, (sample_height - 0.5F) / options->texture->height
+      shader->sample_bounds, bounds_x0 / options->texture->width, bounds_y0 / options->texture->height,
+      bounds_x1 / options->texture->width, bounds_y1 / options->texture->height
   );
 
   if (shader == &renderer->shaders.blur1) {

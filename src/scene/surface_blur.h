@@ -15,6 +15,8 @@ namespace umbriel {
     float ignoreAlpha = 0.0F;
     std::optional<bool> enabled;
     std::optional<bool> optimized;
+    // Blur only what lies under the surface, never what lies beside it.
+    bool contain = false;
   };
 
   // True when the surface's opaque region does not cover surfaceBox, given in surface-local coordinates.

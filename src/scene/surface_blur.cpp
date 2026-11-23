@@ -103,6 +103,7 @@ namespace umbriel {
 
     m_optimized = options.optimized.value_or(cfg.optimized);
     wlr_scene_blur_set_should_only_blur_bottom_layer(m_node, m_optimized && !m_live);
+    wlr_scene_blur_set_contain_samples(m_node, options.contain);
 
     wlr_scene_node_set_enabled(&m_node->node, true);
     wlr_scene_node_set_position(&m_node->node, drawBox.x, drawBox.y);

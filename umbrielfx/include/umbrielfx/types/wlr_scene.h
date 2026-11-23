@@ -256,6 +256,8 @@ struct wlr_scene_blur {
   float ignore_alpha;
 
   bool should_only_blur_bottom_layer;
+  // Blur only what lies under the node, not what lies next to it.
+  bool contain_samples;
 
   struct linked_node transparency_mask_source;
 
@@ -900,6 +902,12 @@ void wlr_scene_blur_set_corner_radii(struct wlr_scene_blur* blur, struct fx_corn
  * Make the blur node only blur the bottom layer of the scene
  */
 void wlr_scene_blur_set_should_only_blur_bottom_layer(struct wlr_scene_blur* blur, bool should_only_blur_bottom_layer);
+
+/**
+ * Make the blur read only the content under the node: nothing beside it
+ * bleeds in, however far the blur reaches.
+ */
+void wlr_scene_blur_set_contain_samples(struct wlr_scene_blur* blur, bool contain_samples);
 
 /**
  * Set the transparency mask source for the blur, only rendering blur where the

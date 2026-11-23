@@ -2519,6 +2519,15 @@ void wlr_scene_blur_set_should_only_blur_bottom_layer(struct wlr_scene_blur* blu
   scene_node_update(&blur->node, NULL);
 }
 
+void wlr_scene_blur_set_contain_samples(struct wlr_scene_blur* blur, bool contain_samples) {
+  if (blur->contain_samples == contain_samples) {
+    return;
+  }
+
+  blur->contain_samples = contain_samples;
+  scene_node_update(&blur->node, NULL);
+}
+
 void wlr_scene_blur_set_transparency_mask_source(struct wlr_scene_blur* blur, struct wlr_scene_buffer* source) {
   if (source == NULL && blur->transparency_mask_source.link == NULL) {
     return;
@@ -4158,6 +4167,7 @@ static void scene_entry_render(struct render_list_entry* entry, const struct ren
             .corners = fx_corner_radii_scale(blur_clip_corners, data->scale),
             .inside = blur->clipped_region.inside,
         },
+        .sample_box = blur->contain_samples ? dst_box : (struct wlr_box){0},
     };
     if (blur->effect != NULL) {
       struct fx_corner_radii effect_corners = backdrop_effect_corners(blur);

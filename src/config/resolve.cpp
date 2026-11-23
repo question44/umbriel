@@ -458,6 +458,9 @@ namespace umbriel {
       if (rule.optimized) {
         resolved.optimized = rule.optimized;
       }
+      if (rule.blurContain) {
+        resolved.blurContain = rule.blurContain;
+      }
       if (rule.backdropEffect) {
         resolved.backdropEffect = rule.backdropEffect;
       }

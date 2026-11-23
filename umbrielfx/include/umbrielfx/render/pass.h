@@ -200,6 +200,10 @@ struct fx_render_blur_pass_options {
   float blur_strength;
   struct fx_corner_fradii corners;
   struct clipped_fregion clipped_region;
+  // When not empty: the blur reads only pixels inside this box (render-target
+  // px), repeating its edge beyond it, so content next to the box never
+  // bleeds in. Empty: the blur reads the whole buffer.
+  struct wlr_box sample_box;
 };
 
 struct fx_gles_render_pass* fx_get_render_pass(struct wlr_render_pass* render_pass);

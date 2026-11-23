@@ -31,10 +31,13 @@ Selectors are optional: a rule without them matches every layer surface, and eve
 | `blur_popups`       | bool  | Enable/disable blur for descendant XDG popups.                             |
 | `blur_ignore_alpha` | float | Skip blur below an alpha threshold.                                        |
 | `blur_optimized`    | bool  | Override the global optimized-blur choice.                                 |
+| `blur_contain`      | bool  | Blur only what lies under the surface, not what lies beside it.            |
 
 Layer-shell blur is off by default. Every matching rule contributes its settings, and later values take precedence.
 
 Optimized blur samples the cached wallpaper blur, so a surface that opens over windows shows the wallpaper through it instead of the windows. Set `blur_optimized = false` on such surfaces (panels, docks, notifications) to blur the live content behind them; it costs GPU time on every frame they are visible and something behind them changes. Surfaces that only cover the wallpaper, such as a bar, keep the cheaper optimized blur. Popups, such as a bar's menus and tooltips, always blur the live content behind them, whatever `blur_optimized` says.
+
+A live blur reaches past the surface's edge (`2^(passes + 1) * radius` px), so a window that ends right beside a thin surface, such as a bar, smears into it. `blur_contain = true` makes the blur read only the pixels under the surface and repeat its edge beyond them: windows under an auto-hidden bar still show, windows beside it do not. It has no effect with optimized blur.
 
 ## Keyboard focus
 
