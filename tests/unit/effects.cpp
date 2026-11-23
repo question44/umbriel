@@ -215,3 +215,13 @@ UMBRIEL_TEST(effectPoolPoliciesAndReferenceConstraintsAreExplicit) {
 }
 
 int main() { return RUN_TESTS(); }
+
+UMBRIEL_TEST(effectParamsBecomeFloatDefinesAheadOfTheShader) {
+  EffectPreset preset{.name = "glass", .kind = EffectKind::Backdrop, .shader = {.code = "body"}};
+  CHECK_EQ(umbriel::effectShaderCode(preset), std::string("body"));
+  preset.params = {{"WAVE_AMP", 4.0}, {"LIGHT", -53.0}, {"CHROMA", 0.35}};
+  CHECK_EQ(
+      umbriel::effectShaderCode(preset),
+      std::string("#define WAVE_AMP 4.0\n#define LIGHT -53.0\n#define CHROMA 0.35\n#line 1\nbody")
+  );
+}

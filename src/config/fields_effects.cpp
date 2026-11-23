@@ -91,6 +91,7 @@ namespace umbriel {
           warnAt(declaration.source, "{} has no shader; the preset is inert", path);
         }
         keys.boolean("palette", preset.palette);
+        keys.sub("params", [&](Section& params) { readEffectParams(params, preset.shader.code, preset.params); });
         // The preset moves into the vector; register the overlay reference by index after the push.
         std::optional<std::pair<std::string, toml::source_region>> overlay;
         switch (*kind) {
@@ -136,6 +137,26 @@ namespace umbriel {
               [&effects, index] { effects.presets[index].overlay.clear(); }
           );
         }
+      }
+    }
+
+    // `[effects.params.<preset>]` overrides a preset's params per key. It is a separate table so that another file
+    // (an include) can change a preset's params: a second `[effects.preset.<name>]` is a duplicate declaration.
+    void readEffectParamOverrides(Section& overrides, Effects& effects, registry::ReadContext& /*context*/) {
+      for (const auto& [key, node] : overrides.table()) {
+        const std::string name(key.str());
+        const auto* table = node.as_table();
+        if (table == nullptr) {
+          overrides.warn(node, std::format("ignoring effects.params.{} (expected table)", name));
+          continue;
+        }
+        auto preset = std::ranges::find(effects.presets, name, &EffectPreset::name);
+        if (preset == effects.presets.end()) {
+          overrides.warn(node, std::format("ignoring effects.params.{} (no preset named '{}')", name, name));
+          continue;
+        }
+        Section params(*table, "effects.params." + name, overrides.diagnostics());
+        readEffectParams(params, preset->shader.code, preset->params);
       }
     }
 
@@ -250,9 +271,12 @@ namespace umbriel {
                 add("light.intensity", KeyDescription("float").withRange(0.0, 4.0));
                 add("light.threshold", KeyDescription("float").withRange(0.0, 1.0));
                 add("radius", KeyDescription("int").withRange(0, 4096));
+                add("params", KeyDescription("table"));
                 return keys;
               }()
           ),
+          // After "preset": overrides apply to presets already read.
+          registry::map<Effects>("params", KeyDescription("table"), readEffectParamOverrides),
           registry::map<Effects>("pool", KeyDescription("table"), readEffectPools, [] {
             registry::Descriptions keys;
             auto kind = KeyDescription("enum").withValues({"border", "window", "screen", "cursor"});

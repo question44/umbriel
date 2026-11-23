@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cerrno>
 #include <cstring>
 #include <fcntl.h>
@@ -211,6 +212,79 @@ namespace umbriel {
       return std::format("effect '{}' is a preset; a pool is required", name);
     }
     return std::nullopt;
+  }
+
+  namespace {
+    bool glslIdentifier(std::string_view name) {
+      if (name.empty() || name.starts_with("GL_") || name.starts_with("umbriel_")) {
+        return false;
+      }
+      const auto alpha = [](char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'; };
+      return alpha(name.front()) && std::ranges::all_of(name, [&](char c) { return alpha(c) || (c >= '0' && c <= '9'); });
+    }
+
+    // Whether `name` appears in `code` as a whole identifier.
+    bool mentions(std::string_view code, std::string_view name) {
+      const auto word = [](char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+      };
+      for (size_t at = code.find(name); at != std::string_view::npos; at = code.find(name, at + 1)) {
+        const size_t end = at + name.size();
+        if ((at == 0 || !word(code[at - 1])) && (end == code.size() || !word(code[end]))) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    // GLSL ES 1.00 has no implicit int-to-float conversion, so every value is written as a float literal.
+    std::string floatLiteral(double value) {
+      std::string text = std::format("{}", value);
+      if (text.find_first_of(".e") == std::string::npos) {
+        text += ".0";
+      }
+      return text;
+    }
+  } // namespace
+
+  void readEffectParams(
+      Section& params, const std::string& shaderCode, std::vector<std::pair<std::string, double>>& target
+  ) {
+    params.freeform();
+    for (const auto& [key, node] : params.table()) {
+      const std::string_view name = key.str();
+      if (!glslIdentifier(name)) {
+        params.warn(node, std::format("ignoring {} (not a GLSL identifier)", params.qualified(name)));
+        continue;
+      }
+      const std::optional<double> value = node.is_number() ? node.value<double>() : std::nullopt;
+      if (!value || !std::isfinite(*value)) {
+        params.warn(node, std::format("ignoring {} (expected a finite number)", params.qualified(name)));
+        continue;
+      }
+      if (!shaderCode.empty() && !mentions(shaderCode, name)) {
+        params.warn(node, std::format("{}: the shader never mentions {}", params.qualified(name), name));
+      }
+      const auto existing = std::ranges::find(target, name, &std::pair<std::string, double>::first);
+      if (existing != target.end()) {
+        existing->second = *value;
+      } else {
+        target.emplace_back(std::string(name), *value);
+      }
+    }
+  }
+
+  std::string effectShaderCode(const EffectPreset& preset) {
+    if (preset.params.empty()) {
+      return preset.shader.code;
+    }
+    std::string code;
+    for (const auto& [name, value] : preset.params) {
+      code += std::format("#define {} {}\n", name, floatLiteral(value));
+    }
+    code += "#line 1\n";
+    code += preset.shader.code;
+    return code;
   }
 
 } // namespace umbriel

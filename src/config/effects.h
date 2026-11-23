@@ -84,6 +84,9 @@ namespace umbriel {
     std::string overlay = {}; // NOLINT(readability-redundant-member-init) border: names a window preset
     std::optional<BorderLight> light = std::nullopt; // border
     int radius = 0;                                  // cursor: 0-4096, 0 = whole output
+    // Shader constants, in declaration order: the preset's own `params`, then `[effects.params.<name>]` per key.
+    // Each becomes `#define NAME value` ahead of the shader source.
+    std::vector<std::pair<std::string, double>> params = {};
     bool inert() const { return shader.code.empty(); }
     bool operator==(const EffectPreset&) const = default;
   };
@@ -112,6 +115,11 @@ namespace umbriel {
   };
 
   const EffectPreset* findEffectPreset(const Effects& effects, std::string_view name);
+  // The source a preset compiles: its params as `#define`s, then `#line 1` and the shader text.
+  std::string effectShaderCode(const EffectPreset& preset);
+  // Reads a `params` table into `target` (overriding names already there). Warns about entries that are not
+  // GLSL-identifier = finite number, and about names the shader text never mentions.
+  void readEffectParams(Section& params, const std::string& shaderCode, std::vector<std::pair<std::string, double>>& target);
   const EffectPool* findEffectPool(const Effects& effects, std::string_view name);
   // Empty and, when allowOff, "off" are valid; other references must satisfy kind and constraint.
   // Returns the diagnostic text on failure.

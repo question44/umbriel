@@ -214,11 +214,12 @@ vec4 animation(vec2 uv) {
   void EffectRegistry::compile(const EffectPreset& preset) {
     auto [slot, inserted] = m_programs.try_emplace(preset.name);
     Entry& entry = slot->second;
-    if (!inserted && entry.kind == preset.kind && entry.code == preset.shader.code) {
+    std::string code = effectShaderCode(preset);
+    if (!inserted && entry.kind == preset.kind && entry.code == code) {
       return;
     }
     entry.kind = preset.kind;
-    entry.code = preset.shader.code;
+    entry.code = std::move(code);
     entry.shader.reset();
     if (preset.inert()) {
       return;
@@ -226,7 +227,7 @@ vec4 animation(vec2 uv) {
     const std::string label =
         preset.shader.file.empty() ? "effects.preset." + preset.name : preset.shader.file.string();
     entry.shader = {
-        fx_effect_shader_create(m_renderer, toFxKind(preset.kind), preset.shader.code.c_str(), label.c_str()),
+        fx_effect_shader_create(m_renderer, toFxKind(preset.kind), entry.code.c_str(), label.c_str()),
         fx_effect_shader_unref
     };
     if (entry.shader == nullptr) {
@@ -370,7 +371,7 @@ vec4 animation(vec2 uv) {
     const auto entry = m_programs.find(name);
     if (entry == m_programs.end()
         || entry->second.kind != configured->kind
-        || entry->second.code != configured->shader.code) {
+        || entry->second.code != effectShaderCode(*configured)) {
       return "unreferenced";
     }
     return entry->second.shader != nullptr ? "compiled" : "failed";
