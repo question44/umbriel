@@ -3246,6 +3246,7 @@ enabled = false
 tap = true
 tap_and_drag = true
 drag_lock = "sticky"
+three_finger_drag = true
 natural_scroll = true
 left_handed = true
 accel_profile = "adaptive"
@@ -3320,6 +3321,7 @@ scroll_button_lock = false
   CHECK(input.touchpad.disableOnExternalMouse == std::optional<bool>(true));
   CHECK(input.touchpad.tapAndDrag == std::optional<bool>(true));
   CHECK(input.touchpad.dragLock == std::optional(umbriel::DragLock::Sticky));
+  CHECK(input.touchpad.threeFingerDrag == std::optional<bool>(true));
   CHECK(input.touchpad.scrollMethod == std::optional(umbriel::ScrollMethod::Edge));
   CHECK(input.touchpad.clickMethod == std::optional(umbriel::ClickMethod::ButtonAreas));
   CHECK(input.touchpad.tapButtonMap == std::optional(umbriel::TapButtonMap::LeftMiddleRight));

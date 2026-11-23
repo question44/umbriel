@@ -35,9 +35,9 @@ Press `Mod+O` by default, or use an [overview action](actions.md#overview). Open
 - Middle-click a window to close it.
 - Drag a window to move it to another workspace.
 - Use the wheel to navigate vertically and Shift+wheel horizontally.
-- Use a four-finger swipe to open or close the overview.
+- Pinch in with four fingers to open the overview, and out to close it.
 
-Two-finger scrolling and three-finger swipes navigate continuously. Movement along the output's [workspace axis](workspaces.md#workspace-axis) moves between workspaces. Movement across it pans a scrolling workspace preview. Dwindle and Master layouts have no strip to pan.
+Two-finger scrolling and four-finger swipes navigate continuously. Movement along the output's [workspace axis](workspaces.md#workspace-axis) moves between workspaces. Movement across it pans a scrolling workspace preview. Dwindle and Master layouts have no strip to pan.
 
 While a window card drag is held, scrolling stays live and both dimensions use the same mechanic: two-finger travel pans the layout strip across the workspace axis and the workspace rows along it, and holding the dragged card near a screen edge slides whichever dimension runs toward it with [drag edge scroll](input.md#drag-edge-scroll) (the strip at its ends, the workspace rows at theirs). The rows never step to another workspace under the hold; releasing drops the window on the workspace under the pointer, which then becomes active.
 

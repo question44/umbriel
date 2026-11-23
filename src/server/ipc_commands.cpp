@@ -1451,10 +1451,10 @@ namespace umbriel {
     }
     wlr_cursor* cursor = server.cursor()->wlr();
     if (phase == "begin") {
-      wlr_pointer_swipe_begin_event event{.pointer = nullptr, .time_msec = time, .fingers = 3};
+      wlr_pointer_swipe_begin_event event{.pointer = nullptr, .time_msec = time, .fingers = 4};
       wl_signal_emit_mutable(&cursor->events.swipe_begin, &event);
     } else if (phase == "update") {
-      wlr_pointer_swipe_update_event event{.pointer = nullptr, .time_msec = time, .fingers = 3, .dx = dx, .dy = dy};
+      wlr_pointer_swipe_update_event event{.pointer = nullptr, .time_msec = time, .fingers = 4, .dx = dx, .dy = dy};
       wl_signal_emit_mutable(&cursor->events.swipe_update, &event);
     } else {
       wlr_pointer_swipe_end_event event{.pointer = nullptr, .time_msec = time, .cancelled = cancelled != 0};
@@ -1605,7 +1605,7 @@ namespace umbriel {
        IpcCommandGroup::Harness, true, &IpcCommands::clockAdvance, nullptr, 35},
       {"clock-resume", "", "let animation time follow the monotonic clock again, from where it stopped",
        IpcCommandGroup::Harness, false, &IpcCommands::clockResume, nullptr},
-      {"swipe-test", "<begin|update|end> <ms> [dx dy|cancelled]", "inject three-finger swipe events (harness only)",
+      {"swipe-test", "<begin|update|end> <ms> [dx dy|cancelled]", "inject four-finger swipe events (harness only)",
        IpcCommandGroup::Harness, true, &IpcCommands::swipeForTest, nullptr},
       {"animation-capture-fail", "<on|off>", "inject animation capture failure (harness only)",
        IpcCommandGroup::Harness, true, &IpcCommands::animationCaptureFail, nullptr},

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Synthetic wlr_cursor swipe events exercise the real three-finger handlers, including direct manipulation.
+# Synthetic wlr_cursor swipe events exercise the real four-finger handlers, including direct manipulation.
 set -euo pipefail
 source "$UMBRIEL_HARNESS_LIB"
 readonly IMAGE="$UMBRIEL_RUNTIME_DIR/gesture.png"

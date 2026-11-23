@@ -75,7 +75,7 @@ workspace_axis = "horizontal"
 | `"vertical"`   | Workspaces stack top to bottom; scrolling layouts run left to right. |
 | `"horizontal"` | Workspaces sit side by side; scrolling layouts run top to bottom.    |
 
-A three-finger swipe along the axis changes workspaces. A swipe across it moves the scrolling strip. The overview follows the same arrangement.
+A four-finger swipe along the axis changes workspaces. A swipe across it moves the scrolling strip. The overview follows the same arrangement.
 
 ## Workspace selectors
 

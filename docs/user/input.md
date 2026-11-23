@@ -128,6 +128,7 @@ In window mode, a surface that has not been focused before starts with the first
 tap = true
 # tap_and_drag = false
 # drag_lock = "sticky"
+# three_finger_drag = true
 natural_scroll = true
 left_handed = false
 # accel_profile = "adaptive"
@@ -148,7 +149,8 @@ Omitted values preserve the device's libinput defaults. Explicit unsupported set
 | `tap`                       | Enable tap-to-click.                                                                                                                                                                     |
 | `tap_and_drag`              | Keep dragging after a tap when the finger stays down and moves.                                                                                                                          |
 | `drag_lock`                 | Keep dragging after the finger lifts during a tap-and-drag: `"off"` disables it, `"timeout"` ends the drag shortly after the finger lifts, `"sticky"` holds the drag until the next tap. |
-| `natural_scroll`            | Reverse scrolling and three-finger gesture direction.                                                                                                                                    |
+| `three_finger_drag`         | Hold the left button while three fingers move (libinput three-finger drag).                                                                                                              |
+| `natural_scroll`            | Reverse scrolling and four-finger gesture direction.                                                                                                                                     |
 | `left_handed`               | Swap the primary and secondary buttons.                                                                                                                                                  |
 | `accel_profile`             | Use `"flat"`, `"adaptive"`, or a custom acceleration curve.                                                                                                                              |
 | `sensitivity`               | Pointer speed from -1.0 to 1.0.                                                                                                                                                          |

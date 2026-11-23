@@ -99,7 +99,7 @@ namespace umbriel {
     WorkspaceAxis m_workspaceAxis{};
     int m_naturalScrollDirection = 1;
 
-    // Scroll state (horizontal 3-finger).
+    // Scroll state (4-finger across the workspace axis).
     Workspace* m_scrollWorkspace = nullptr;
     double m_scrollStart = 0;
     bool m_scrollStartCentered = false;
@@ -112,7 +112,7 @@ namespace umbriel {
     ScrollSource m_scrollSource = ScrollSource::None;
     SwipeTracker m_scrollTracker;
 
-    // Switch state (vertical 3-finger).
+    // Switch state (4-finger along the workspace axis).
     WorkspaceGroup* m_switchGroup = nullptr;
     SwipeTracker m_switchTracker;
     // Where the slide was, in steps from its base, when the gesture took it over: nonzero only when the gesture started
@@ -121,8 +121,11 @@ namespace umbriel {
     bool m_hasPrev = false;
     bool m_hasNext = false;
 
-    // Overview state (vertical 4-finger): swipe up opens, swipe down closes.
+    // Overview state (4-finger pinch): pinch in opens, pinch out closes.
     bool m_overviewWasOpen = false;
+    // The overview gesture in flight is a pinch, and its travel so far in overview pixels.
+    bool m_pinchOverview = false;
+    double m_pinchTravel = 0;
     SwipeTracker m_overviewTracker;
 
     wl_listener m_swipeBegin{};

@@ -22,6 +22,11 @@ namespace umbriel {
     // Finger travel for a full overview open or close. One workspace of the three-finger switch travels the same
     // distance, so the hand reads one gesture distance on either side of the overview.
     constexpr double kOverviewDistancePx = 300.0;
+    // Fingers for the workspace switch and strip scroll. Three fingers belong to libinput's three-finger drag.
+    constexpr uint32_t kNavigateFingers = 4;
+    // Fingers for the overview pinch, and the finger spread (relative to the start) that opens it fully.
+    constexpr uint32_t kOverviewPinchFingers = 4;
+    constexpr double kOverviewPinchScale = 0.6;
 
     int touchpadGestureDirection(wlr_pointer* pointer) {
       if (pointer == nullptr || !wlr_input_device_is_libinput(&pointer->base)) {
@@ -358,16 +363,9 @@ namespace umbriel {
       cancelActive();
     }
     Overview* overview = m_server->overview();
-    if (event->fingers == 4 && overview != nullptr) {
-      overview->cancelNavigation();
-      m_state = State::Overview;
-      m_accumX = 0;
-      m_accumY = 0;
-      m_overviewWasOpen = overview->active();
-      m_overviewTracker.reset();
-      return;
-    }
-    if (event->fingers == 3) {
+    // Four fingers navigate (three are left to libinput's three-finger drag); the overview opens with a four-finger
+    // pinch instead (handlePinchBegin).
+    if (event->fingers == kNavigateFingers) {
       m_naturalScrollDirection = touchpadGestureDirection(event->pointer);
       if (overview != nullptr && overview->active()) {
         const wlr_cursor* cursor = m_server->cursor()->wlr();
@@ -739,6 +737,17 @@ namespace umbriel {
     if (m_server->sessionLocked()) {
       return;
     }
+    Overview* overview = m_server->overview();
+    if (event->fingers == kOverviewPinchFingers && overview != nullptr && m_state == State::Idle) {
+      // Pinch in opens, pinch out closes; base is where the gesture started.
+      overview->cancelNavigation();
+      m_state = State::Overview;
+      m_pinchOverview = true;
+      m_pinchTravel = 0;
+      m_overviewWasOpen = overview->active();
+      m_overviewTracker.reset();
+      return;
+    }
     wlr_pointer_gestures_v1_send_pinch_begin(
         m_server->pointerGestures(), m_server->seat()->wlr(), event->time_msec, event->fingers
     );
@@ -748,6 +757,31 @@ namespace umbriel {
     auto* event = static_cast<wlr_pointer_pinch_update_event*>(data);
     m_server->notifyInputActivity();
     if (m_server->sessionLocked()) {
+      if (m_pinchOverview) {
+        silentCancel();
+      }
+      return;
+    }
+    if (m_pinchOverview) {
+      if (m_state != State::Overview) {
+        return; // Cancelled under the fingers; the rest of this pinch belongs to nothing.
+      }
+      Overview* overview = m_server->overview();
+      if (overview == nullptr) {
+        m_state = State::Idle;
+        return;
+      }
+      // libinput's scale is relative to the spread at the start. Its logarithm makes pinching in and back out
+      // symmetric, and one full open takes the spread down to kOverviewPinchScale.
+      const double travel =
+          event->scale > 0.0 ? std::log(event->scale) / std::log(kOverviewPinchScale) * kOverviewDistancePx : 0.0;
+      m_overviewTracker.push(travel - m_pinchTravel, event->time_msec);
+      m_pinchTravel = travel;
+      const double base = m_overviewWasOpen ? 1.0 : 0.0;
+      const double p = GesturePhysics::rubberBand(
+          base + m_overviewTracker.pos() / kOverviewDistancePx, 0.0, 1.0, GesturePhysics::kOverscrollLimit
+      );
+      overview->gestureUpdate(p);
       return;
     }
     wlr_pointer_gestures_v1_send_pinch_update(
@@ -759,6 +793,13 @@ namespace umbriel {
   void Gestures::handlePinchEnd(void* data) {
     auto* event = static_cast<wlr_pointer_pinch_end_event*>(data);
     m_server->notifyIdleActivity();
+    if (m_pinchOverview) {
+      m_pinchOverview = false;
+      if (m_state == State::Overview && !m_server->sessionLocked()) {
+        finishOverview(event->cancelled, event->time_msec);
+      }
+      return;
+    }
     if (m_server->sessionLocked()) {
       return;
     }

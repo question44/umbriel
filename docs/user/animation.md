@@ -106,7 +106,7 @@ wait_for_redraw = true
 
 When a tiled window closes while `windows_out` is disabled, its last frame stays on screen until the switch, so the wallpaper never shows in the space it leaves.
 
-`animation.overview.workspace_curve` controls filmstrip movement after wheel, keyboard, and touchpad navigation. A released touchpad gesture keeps the speed the fingers had when its curve is a spring: `[animation.workspaces]` for the three-finger switch, `[animation.overview]` for the four-finger open and close, and `workspace_curve` for the filmstrip. Any other curve starts from rest.
+`animation.overview.workspace_curve` controls filmstrip movement after wheel, keyboard, and touchpad navigation. A released touchpad gesture keeps the speed the fingers had when its curve is a spring: `[animation.workspaces]` for the four-finger switch, `[animation.overview]` for the four-finger pinch open and close, and `workspace_curve` for the filmstrip. Any other curve starts from rest.
 
 Scratchpad `dim` and `blur` remain active without a fade when animation is disabled. `dim` is the opacity of the black layer over the output behind a visible scratchpad; `blur` blurs it when `[appearance.blur]` is enabled.
 

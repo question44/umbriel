@@ -132,7 +132,7 @@ center_on_overview_select = false
 
 Primary extent actions resize a column along the strip. Secondary extent actions resize a window within its column.
 
-A three-finger swipe along the workspace axis switches workspaces. A swipe across it scrolls the strip. Touchpad direction follows `input.touchpad.natural_scroll`.
+A four-finger swipe along the workspace axis switches workspaces. A swipe across it scrolls the strip. Touchpad direction follows `input.touchpad.natural_scroll`.
 
 ### Scrolling behavior
 
