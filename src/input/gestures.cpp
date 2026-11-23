@@ -216,8 +216,11 @@ namespace umbriel {
     m_viewportPrimary = workspace->scrollViewportExtent();
     m_scrollStart = scrolling->scroll();
     const auto bounds = scrolling->scrollBounds(m_viewportPrimary);
-    m_scrollLow = bounds[0];
-    m_scrollHigh = bounds[1];
+    // The strip stops at its ends instead of rubber-banding past them and springing back. A start outside the bounds
+    // widens them, so the strip never jumps when the fingers land.
+    m_scrollLow = std::min(bounds[0], m_scrollStart);
+    m_scrollHigh = std::max(bounds[1], m_scrollStart);
+    m_scrollShift = 0;
     m_scrollTracker.reset();
     m_scrollStartCentered = scrolling->centeredRest();
     m_scrollScale = scale;
@@ -244,11 +247,11 @@ namespace umbriel {
       return;
     }
     m_scrollTracker.push(delta, timeMsec);
-    // Damp travel past either strip end: with no column to scroll to there is only the spring-back, and following the
-    // fingers one-to-one makes that snap look violent.
-    const double limit = GesturePhysics::kOverscrollLimit * std::max(1, m_viewportPrimary);
-    const double raw = m_scrollStart - m_scrollTracker.pos() * m_scrollScale;
-    scrolling->setScroll(GesturePhysics::rubberBand(raw, m_scrollLow, m_scrollHigh, limit));
+    // Travel past an end is dropped rather than banked, so reversing moves the strip at once.
+    const double target = m_scrollStart + m_scrollShift - m_scrollTracker.pos() * m_scrollScale;
+    const double clamped = std::clamp(target, m_scrollLow, m_scrollHigh);
+    m_scrollShift += clamped - target;
+    scrolling->setScroll(clamped);
     m_scrollWorkspace->markArrange(false);
   }
 
@@ -625,11 +628,9 @@ namespace umbriel {
     m_scrollTracker.push(0.0, timeMsec);
 
     const double currentScroll = scrolling->scroll();
-    // Where the swipe would coast to a stop, damped the same way as the travel so a release past the strip end settles
-    // on the end column instead of reading as a miss.
-    const double limit = GesturePhysics::kOverscrollLimit * std::max(1, m_viewportPrimary);
-    const double projected = GesturePhysics::rubberBand(
-        m_scrollStart - m_scrollTracker.projectedEndPos() * m_scrollScale, m_scrollLow, m_scrollHigh, limit
+    // Where the swipe would coast to a stop under deceleration, held inside the strip ends.
+    const double projected = std::clamp(
+        m_scrollStart + m_scrollShift - m_scrollTracker.projectedEndPos() * m_scrollScale, m_scrollLow, m_scrollHigh
     );
 
     const auto columnCount = static_cast<int>(scrolling->columns().size());

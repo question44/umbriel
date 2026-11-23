@@ -106,6 +106,8 @@ namespace umbriel {
     // Resting range of the strip at the gesture start, so travel past either end is damped instead of hitting a wall.
     double m_scrollLow = 0;
     double m_scrollHigh = 0;
+    // Travel dropped at the strip ends so far in this gesture.
+    double m_scrollShift = 0;
     int m_viewportPrimary = 0;
     double m_scrollScale = 1.0;
     bool m_scrollVertical = false;
