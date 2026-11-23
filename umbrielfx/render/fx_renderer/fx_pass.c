@@ -928,6 +928,18 @@ static void draw_animation_texture(
       );
     }
   }
+  if (shader->kind == FX_EFFECT_BACKDROP) {
+    // Backdrop programs receive pointer ripples through the path slot.
+    struct fx_uniform count = {.name = "umbriel_ripple_count", .type = FX_UNIFORM_INT, .count = 1};
+    count.ints[0] = pointer_path != NULL ? (int32_t)pointer_path->count : 0;
+    fx_effect_shader_bind_uniform(shader, &count);
+    if (pointer_path != NULL && pointer_path->count > 0) {
+      fx_effect_shader_bind_uniform_data(
+          shader, "umbriel_ripples", FX_UNIFORM_VEC4, pointer_path->count, pointer_path->points,
+          sizeof(pointer_path->points)
+      );
+    }
+  }
   glUniform1f(shader->scale, animation_box_scale(box, logical_box) * effect_scale);
   glUniform4fv(shader->random_seed, 1, parameters->random_seed);
   const struct wlr_fbox unit = {.width = 1, .height = 1};
@@ -3246,8 +3258,8 @@ void fx_render_pass_add_blur_effect(
   pass->backdrop_shape_threshold = fx_options->ignore_alpha;
   draw_animation_texture(
       pass, blurred_texture, effect->shader, effect->parameters, &box, &box, &effect->logical_box, 0, NULL,
-      effect->corner_radius, NULL, NULL, NULL, WL_OUTPUT_TRANSFORM_NORMAL, clip, NULL, NULL, pass->projection_matrix,
-      true, true
+      effect->corner_radius, NULL, effect->ripples, NULL, WL_OUTPUT_TRANSFORM_NORMAL, clip, NULL, NULL,
+      pass->projection_matrix, true, true
   );
   pass->effect_keeps_stencil = false;
   pass->backdrop_shape = NULL;

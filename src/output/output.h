@@ -347,6 +347,7 @@ namespace umbriel {
     float m_effectSeconds = 0.0F;
     bool m_outputEffectsTimed = false; // a visible screen or cursor instance here reads umbriel_time
     char m_cursorEffectOwner{};        // ledger identity of the cursor slot; the screen slot uses `this`
+    char m_rippleOwner{};              // ledger identity of pointer ripples in backdrop programs
     bool m_effectCaptureBuilt = false; // the last built frame had an effect capture pending
     View* m_autoHdrOwner = nullptr;
     std::string m_hdrFallbackReason;

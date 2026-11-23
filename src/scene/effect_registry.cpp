@@ -138,6 +138,32 @@ vec4 animation(vec2 uv) {
         preset(m_server->cursorEffectSlot().effectiveName(), EffectKind::Cursor) != nullptr && !m_ledger.suspended();
   }
 
+  void EffectRegistry::updateRipplesWanted() {
+    m_ripplesWanted = !m_ledger.suspended() && std::ranges::any_of(m_programs, [](const auto& item) {
+      return item.second.kind == EffectKind::Backdrop
+          && item.second.shader != nullptr
+          && fx_effect_shader_reads(item.second.shader.get(), "umbriel_ripples");
+    });
+    // The first prepare() runs before the scene exists; rippleInput() applies the choice then.
+    if (wlr_scene* scene = m_server->scene(); scene != nullptr) {
+      wlr_scene_set_ripples_enabled(scene, m_ripplesWanted);
+    }
+  }
+
+  void EffectRegistry::rippleInput(double lx, double ly, bool click) {
+    wlr_scene* scene = m_server->scene();
+    if (scene == nullptr) {
+      return;
+    }
+    wlr_scene_set_ripples_enabled(scene, m_ripplesWanted);
+    const bool before = wlr_scene_ripples_active(scene);
+    wlr_scene_ripple_set_time(scene, m_server->animationClockMsec());
+    wlr_scene_ripple_add(scene, lx, ly, click);
+    if (!before && wlr_scene_ripples_active(scene)) {
+      applyOutputEffects();
+    }
+  }
+
   void EffectRegistry::setAudio(const EffectAudio& audio) {
     if (m_audio == audio) {
       return;
@@ -151,6 +177,7 @@ vec4 animation(vec2 uv) {
   void EffectRegistry::setSuspended(bool suspended) {
     m_ledger.setSuspended(suspended);
     updateCursorActive();
+    updateRipplesWanted();
   }
 
   void EffectRegistry::removeOutput(const Output* output) {
@@ -263,6 +290,7 @@ vec4 animation(vec2 uv) {
           && item.second.shader != nullptr;
     });
     updateCursorActive();
+    updateRipplesWanted();
     const bool fadeNeeded = builtinFadeApplies(settings.animation, AnimationEvent::WindowsIn)
         || builtinFadeApplies(settings.animation, AnimationEvent::WindowsOut);
     if (fadeNeeded && m_builtinFade == nullptr) {

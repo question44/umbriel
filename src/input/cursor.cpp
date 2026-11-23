@@ -360,6 +360,9 @@ namespace umbriel {
   }
 
   void Cursor::forwardEffectPointer() const {
+    if (!m_cursorHidden) {
+      m_server->effects().rippleInput(m_cursor->x, m_cursor->y, false);
+    }
     if (m_server->effects().cursorEffectActive()) {
       m_server->effects().pointerMoved(m_cursor->x, m_cursor->y, !m_cursorHidden);
     }
@@ -1689,6 +1692,7 @@ namespace umbriel {
       m_server->notifyIdleActivity();
     }
     if (state == WL_POINTER_BUTTON_STATE_PRESSED) {
+      m_server->effects().rippleInput(m_cursor->x, m_cursor->y, true);
       cancelHotCorner();
       m_server->cancelModifierTap();
       // Any pointer press cancels the confirmation without being consumed; the

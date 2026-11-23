@@ -301,6 +301,16 @@ namespace umbriel {
 #endif
     wlr_scene_output_set_effect_time(m_sceneOutput, m_server->animationClockMsec());
     m_outputEffectsTimed = false;
+    // Pointer ripples in backdrop programs ask for frames while samples remain; the clock step damages their reach.
+    wlr_scene_ripple_set_time(m_server->scene(), m_server->animationClockMsec());
+    if (wlr_scene_ripples_active(m_server->scene())) {
+      m_outputEffectsTimed = m_outputEffectsTimed || m_output->enabled;
+      registry.updateInstance(
+          &m_rippleOwner, {.output = this, .visible = m_output->enabled, .readsTime = true, .advancing = advancing}
+      );
+    } else {
+      registry.removeInstance(&m_rippleOwner);
+    }
     // Register demand after the cursor program and motion history have been updated.
     const auto bind = [&](const void* owner, fx_effect_shader* shader, bool visible) {
       const bool motion = fx_effect_shader_reads(shader, "umbriel_pointer_history")

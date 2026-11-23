@@ -1035,6 +1035,59 @@ static void transform_output_box(struct wlr_box* box, const struct render_data* 
   box->y += data->capture_y;
 }
 
+static void scene_output_damage(struct wlr_scene_output* scene_output, const pixman_region32_t* damage);
+static void scale_region(pixman_region32_t* region, float scale, bool round_up);
+static void output_to_buffer_coords(pixman_region32_t* damage, struct wlr_output* output);
+
+// Damages the box every live ring can reach, on each output.
+static void scene_ripples_damage(struct wlr_scene* scene) {
+  if (scene->ripple_count == 0) {
+    return;
+  }
+  double x0 = scene->ripples[0].x, y0 = scene->ripples[0].y, x1 = x0, y1 = y0;
+  for (unsigned i = 1; i < scene->ripple_count; ++i) {
+    x0 = fmin(x0, scene->ripples[i].x);
+    y0 = fmin(y0, scene->ripples[i].y);
+    x1 = fmax(x1, scene->ripples[i].x);
+    y1 = fmax(y1, scene->ripples[i].y);
+  }
+  struct wlr_scene_output* output;
+  wl_list_for_each(output, &scene->outputs, link) {
+    const int left = (int)floor(x0) - WLR_SCENE_RIPPLE_REACH - output->x;
+    const int top = (int)floor(y0) - WLR_SCENE_RIPPLE_REACH - output->y;
+    const int right = (int)ceil(x1) + WLR_SCENE_RIPPLE_REACH - output->x;
+    const int bottom = (int)ceil(y1) + WLR_SCENE_RIPPLE_REACH - output->y;
+    pixman_region32_t damage;
+    pixman_region32_init_rect(&damage, left, top, (unsigned)(right - left), (unsigned)(bottom - top));
+    scale_region(&damage, output->output->scale, true);
+    output_to_buffer_coords(&damage, output->output);
+    scene_output_damage(output, &damage);
+    pixman_region32_fini(&damage);
+  }
+}
+
+// The samples whose rings can reach a node at (lx, ly) of the given size, in its uv.
+static void scene_ripples_for_node(
+    const struct wlr_scene* scene, int lx, int ly, int width, int height, struct fx_cursor_path* out
+) {
+  out->count = 0;
+  const double reach = WLR_SCENE_RIPPLE_REACH;
+  for (unsigned i = 0; i < scene->ripple_count && out->count < 64; ++i) {
+    const struct wlr_scene_ripple* sample = &scene->ripples[i];
+    if (sample->x < lx - reach
+        || sample->y < ly - reach
+        || sample->x > lx + width + reach
+        || sample->y > ly + height + reach) {
+      continue;
+    }
+    float* point = out->points[out->count++];
+    point[0] = (float)((sample->x - lx) / width);
+    point[1] = (float)((sample->y - ly) / height);
+    point[2] = scene->ripple_time >= sample->time ? (float)(scene->ripple_time - sample->time) / 1000.0F : 0.0F;
+    point[3] = sample->kind;
+  }
+}
+
 static void scene_output_damage(struct wlr_scene_output* scene_output, const pixman_region32_t* damage) {
   struct wlr_output* output = scene_output->output;
 
@@ -4172,7 +4225,13 @@ static void scene_entry_render(struct render_list_entry* entry, const struct ren
     if (blur->effect != NULL) {
       struct fx_corner_radii effect_corners = backdrop_effect_corners(blur);
       fx_corner_radii_transform(node_transform, &effect_corners);
+      struct fx_cursor_path ripples = {0};
+      const bool reads_ripples = fx_effect_shader_reads(blur->effect, "umbriel_ripples");
+      if (reads_ripples && blur->width > 0 && blur->height > 0) {
+        scene_ripples_for_node(scene, entry->x, entry->y, blur->width, blur->height, &ripples);
+      }
       struct fx_backdrop_effect effect = {
+          .ripples = reads_ripples ? &ripples : NULL,
           .shader = blur->effect,
           .parameters = &blur->effect_parameters,
           .logical_box = {.width = blur->width, .height = blur->height},
@@ -5098,6 +5157,65 @@ static void output_effects_damage_cursor(struct scene_output_effects* effects) {
   output_to_buffer_coords(&damage, output->output);
   scene_output_damage(output, &damage);
   pixman_region32_fini(&damage);
+}
+
+void wlr_scene_set_ripples_enabled(struct wlr_scene* scene, bool enabled) {
+  if (scene->ripples_enabled == enabled) {
+    return;
+  }
+  scene->ripples_enabled = enabled;
+  if (!enabled) {
+    scene_ripples_damage(scene);
+    scene->ripple_count = 0;
+  }
+}
+
+void wlr_scene_ripple_set_time(struct wlr_scene* scene, uint64_t msec) {
+  if (scene->ripple_time == msec) {
+    return;
+  }
+  // The reach box covers every ring at any age, so one damage per step covers
+  // the rings' old and new extents alike.
+  scene_ripples_damage(scene);
+  unsigned expired = 0;
+  while (expired < scene->ripple_count
+         && (msec < scene->ripples[expired].time || msec - scene->ripples[expired].time >= WLR_SCENE_RIPPLE_LIFE_MS)) {
+    ++expired;
+  }
+  scene->ripple_count -= expired;
+  memmove(scene->ripples, scene->ripples + expired, scene->ripple_count * sizeof(scene->ripples[0]));
+  scene->ripple_time = msec;
+}
+
+void wlr_scene_ripple_add(struct wlr_scene* scene, double lx, double ly, bool click) {
+  if (!scene->ripples_enabled) {
+    return;
+  }
+  unsigned count = scene->ripple_count;
+  const struct wlr_scene_ripple* last = count > 0 ? &scene->ripples[count - 1] : NULL;
+  if (!click && last != NULL && last->kind == 0.0F && last->x == lx && last->y == ly) {
+    return;
+  }
+  // Keep the newest motion event while spacing older samples by about one 30 Hz frame; clicks always stay.
+  if (!click
+      && count >= 2
+      && last->kind == 0.0F
+      && scene->ripples[count - 2].kind == 0.0F
+      && scene->ripple_time - scene->ripples[count - 2].time < 32) {
+    --count;
+  }
+  if (count == WLR_SCENE_RIPPLES_MAX) {
+    memmove(scene->ripples, scene->ripples + 1, (WLR_SCENE_RIPPLES_MAX - 1) * sizeof(scene->ripples[0]));
+    --count;
+  }
+  scene->ripples[count] =
+      (struct wlr_scene_ripple){.x = lx, .y = ly, .time = scene->ripple_time, .kind = click ? 1.0F : 0.0F};
+  scene->ripple_count = count + 1;
+  scene_ripples_damage(scene);
+}
+
+bool wlr_scene_ripples_active(const struct wlr_scene* scene) {
+  return scene->ripples_enabled && scene->ripple_count > 0;
 }
 
 bool wlr_scene_output_cursor_motion_active(struct wlr_scene_output* output) {
