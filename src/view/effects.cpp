@@ -2,6 +2,7 @@
 
 #include "config/config.h"
 #include "scene/effect_registry.h"
+#include "view/glass_regions.h"
 
 #include <algorithm>
 
@@ -61,6 +62,37 @@ namespace umbriel {
     effectRegistry().removeInstance(owner);
   }
 
+
+  namespace {
+    // umbriel_glass_v1 shapes for a shader that reads them, relative to the blur node (the window geometry). Always
+    // filled when read, count 0 without shapes: the program is shared, so stale values would leak between windows.
+    void fillGlassUniforms(fx_animation_parameters& parameters, const fx_effect_shader* shader, const ViewEffects::ApplyInput& input) {
+      if (!fx_effect_shader_reads(shader, "umbriel_glass_count")) {
+        return;
+      }
+      const std::vector<GlassShape>* shapes =
+          input.glassSurface != nullptr ? GlassRegions::shapes(input.glassSurface) : nullptr;
+      const std::size_t count = shapes != nullptr ? std::min(shapes->size(), kMaxGlassShapes) : 0;
+      fx_uniform* a = fx_parameters_add_uniform(&parameters, "umbriel_glass_rect_a", FX_UNIFORM_VEC4, 8);
+      fx_uniform* b = fx_parameters_add_uniform(&parameters, "umbriel_glass_rect_b", FX_UNIFORM_VEC4, 8);
+      fx_uniform* radius = fx_parameters_add_uniform(&parameters, "umbriel_glass_radius", FX_UNIFORM_VEC4, 4);
+      fx_uniform* total = fx_parameters_add_uniform(&parameters, "umbriel_glass_count", FX_UNIFORM_FLOAT, 1);
+      if (a == nullptr || b == nullptr || radius == nullptr || total == nullptr) {
+        return;
+      }
+      for (std::size_t i = 0; i < count; i++) {
+        const GlassShape& shape = (*shapes)[i];
+        float* rect = i < 8 ? &a->floats[i * 4] : &b->floats[(i - 8) * 4];
+        rect[0] = static_cast<float>(shape.x - input.geometry.x);
+        rect[1] = static_cast<float>(shape.y - input.geometry.y);
+        rect[2] = static_cast<float>(shape.width);
+        rect[3] = static_cast<float>(shape.height);
+        radius->floats[i] = static_cast<float>(shape.radius);
+      }
+      total->floats[0] = static_cast<float>(count);
+    }
+  } // namespace
+
   void ViewEffects::applyBackdrop(const ApplyInput& input) {
     if (input.blur == nullptr) {
       return;
@@ -77,6 +109,7 @@ namespace umbriel {
     fx_animation_parameters parameters{};
     parameters.scale = input.scale;
     registry.fillTimeUniforms(parameters, 0.0F, *preset, shader);
+    fillGlassUniforms(parameters, shader, input);
     wlr_scene_blur_set_effect(input.blur, shader, &parameters, preset->padding);
     m_backdropBound = true;
   }

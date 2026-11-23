@@ -906,6 +906,8 @@ namespace umbriel {
           .output = output,
           .outputBox = output != nullptr ? output->layoutBox() : wlr_box{},
           .blur = m_decoration.blurNode(),
+          .glassSurface = rootSurface(),
+          .geometry = geometryBox(),
       });
     }
   }

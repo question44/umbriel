@@ -13,6 +13,7 @@
 #include "input/eis.h"
 #include "input/gestures.h"
 #include "input/input_capture.h"
+#include "view/glass_regions.h"
 #include "input/keyboard.h"
 #include "input/keyboard_leds.h"
 #include "input/seat.h"
@@ -962,6 +963,7 @@ namespace umbriel {
     m_stopping = true;
     updateDrmLeaseState();
     m_inputCapture.reset();
+    m_glassRegions.reset();
     if (m_sessionActive.link.next != nullptr) {
       wl_list_remove(&m_sessionActive.link);
     }
@@ -1256,6 +1258,7 @@ namespace umbriel {
       setenv("XCURSOR_THEME", cursorCfg.theme.c_str(), 1);
     }
 
+    m_glassRegions = std::make_unique<GlassRegions>(*this);
     m_inputCapture = std::make_unique<InputCapture>(*this);
     m_inputCapture->setAuthorize([this](uint64_t id, std::string_view name, uint32_t persistMode) {
       requestInputCapture(id, name, persistMode);

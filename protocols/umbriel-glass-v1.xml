@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<protocol name="umbriel_glass_v1">
+  <copyright>
+    Copyright © 2026 erebor
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice (including the next
+    paragraph) shall be included in all copies or substantial portions of the
+    Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+  </copyright>
+
+  <description summary="glass regions behind a toplevel">
+    Lets a client describe rounded rectangles of its toplevel surface that the
+    compositor draws as glass: the desktop behind the window, blurred and
+    refracted, under the client's own (translucent) pixels. Outside the
+    shapes nothing is drawn behind the window.
+
+    The compositor decides how the glass looks (its effect preset); the
+    client only says where it is. The shapes need a translucent surface: an
+    opaque region hides them.
+  </description>
+
+  <interface name="umbriel_glass_manager_v1" version="1">
+    <description summary="glass regions factory"/>
+
+    <request name="destroy" type="destructor">
+      <description summary="destroy the manager">
+        Existing umbriel_glass_v1 objects stay valid.
+      </description>
+    </request>
+
+    <enum name="error">
+      <entry name="already_exists" value="0" summary="the surface already has a glass object"/>
+    </enum>
+
+    <request name="get_glass">
+      <description summary="glass regions for a surface">
+        Creates the glass object of a toplevel's root surface. A surface may
+        have one at a time.
+      </description>
+      <arg name="id" type="new_id" interface="umbriel_glass_v1"/>
+      <arg name="surface" type="object" interface="wl_surface"/>
+    </request>
+  </interface>
+
+  <interface name="umbriel_glass_v1" version="1">
+    <description summary="glass regions of one surface">
+      The shapes are double-buffered: set_shapes takes effect on the next
+      wl_surface.commit, together with the buffer drawn for them.
+    </description>
+
+    <enum name="error">
+      <entry name="invalid_shapes" value="0" summary="array size is not a whole number of shapes"/>
+      <entry name="too_many_shapes" value="1" summary="more shapes than the compositor accepts (16)"/>
+    </enum>
+
+    <request name="destroy" type="destructor">
+      <description summary="remove the glass">
+        Removes the shapes at the next wl_surface.commit.
+      </description>
+    </request>
+
+    <request name="set_shapes">
+      <description summary="set the glass shapes">
+        An array of shapes, each six int32 values in surface-local logical
+        pixels: x, y, width, height, corner radius, flags (reserved, 0).
+        Shapes should not overlap. An empty array removes the glass.
+      </description>
+      <arg name="shapes" type="array"/>
+    </request>
+  </interface>
+</protocol>

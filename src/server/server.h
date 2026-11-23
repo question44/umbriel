@@ -134,6 +134,7 @@ namespace umbriel {
   class Cursor;
   class EisInput;
   class InputCapture;
+  class GlassRegions;
   class BackendManager;
   class DrmLeaseManager;
   class FocusManager;
@@ -963,6 +964,7 @@ namespace umbriel {
     std::unique_ptr<Xwayland> m_xwayland;
     std::unique_ptr<EisInput> m_eisInput;
     std::unique_ptr<InputCapture> m_inputCapture;
+    std::unique_ptr<GlassRegions> m_glassRegions;
     uint64_t m_pendingCaptureId = 0;
     uint32_t m_inputCaptureCapabilities = 0;
     uint64_t m_pendingInputId = 0;

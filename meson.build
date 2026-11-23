@@ -173,6 +173,19 @@ input_capture_protocol_c = custom_target(
   command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
 )
 
+glass_server_h = custom_target(
+  'umbriel-glass-v1-server-protocol.h',
+  input: 'protocols/umbriel-glass-v1.xml',
+  output: 'umbriel-glass-v1-server-protocol.h',
+  command: [wayland_scanner, 'server-header', '@INPUT@', '@OUTPUT@'],
+)
+glass_protocol_c = custom_target(
+  'umbriel-glass-v1-protocol.c',
+  input: 'protocols/umbriel-glass-v1.xml',
+  output: 'umbriel-glass-v1-protocol.c',
+  command: [wayland_scanner, 'private-code', '@INPUT@', '@OUTPUT@'],
+)
+
 # umbrielfx's vendored layer-shell scene helper needs this server header, so it
 # is generated before the subdir that consumes it.
 layer_shell_protocol_h = custom_target(
@@ -827,6 +840,7 @@ core_sources = files(
   'src/xwayland/shape.cpp',
   'src/input/eis.cpp',
   'src/input/input_capture.cpp',
+  'src/view/glass_regions.cpp',
   'src/input/input_capture_permissions.cpp',
   'src/input/eis_socket.cpp',
   'src/xwayland/window.cpp',
@@ -916,6 +930,8 @@ umbriel_core = static_library(
   core_sources + [
     input_capture_server_h,
     input_capture_protocol_c,
+    glass_server_h,
+    glass_protocol_c,
     toplevel_drag_server_h,
     toplevel_drag_c,
     xdg_shell_client_c,

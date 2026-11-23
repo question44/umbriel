@@ -12,6 +12,7 @@ extern "C" {
 
 struct wlr_scene_node;
 struct wlr_scene_blur;
+struct wlr_surface;
 
 namespace umbriel {
 
@@ -51,6 +52,10 @@ namespace umbriel {
       const void* output = nullptr; // the output driving this instance's frames
       wlr_box outputBox{};          // that output's layout box: an instance is visible only inside it
       wlr_scene_blur* blur = nullptr; // the window's blur node, which draws a backdrop preset
+      // The toplevel's root surface and its window geometry (surface-local): glass shapes (umbriel_glass_v1) are
+      // given relative to the surface, the blur node covers the geometry.
+      wlr_surface* glassSurface = nullptr;
+      wlr_box geometry{};
     };
     // True when a border or window preset is selected for this view: the caller reads the clock only then.
     bool configured() const { return !m_border.empty() || !m_window.empty() || !m_backdrop.empty() || m_backdropBound; }
