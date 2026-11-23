@@ -283,6 +283,24 @@ bool fx_render_pass_add_optimized_blur(
  */
 bool fx_render_pass_optimized_blur_stale(const struct fx_gles_render_pass* pass);
 
+struct fx_glass_light;
+/**
+ * Liquid-glass light: reduce `source` (an output-sized buffer) and start an
+ * asynchronous read of it. Skipped while an earlier read is pending.
+ */
+void fx_render_pass_sample_glass_light(
+    struct fx_gles_render_pass* pass, struct fx_framebuffer* source, int64_t now_ms
+);
+/**
+ * Collects a finished read and eases the light towards it, `smoothing`
+ * seconds per e-fold. True when the light the shaders see changed; `busy`
+ * when a read is pending or the light is still moving.
+ */
+bool fx_glass_light_step(
+    struct fx_renderer* renderer, struct fx_glass_light* light, int64_t now_ms, float smoothing, bool* busy
+);
+void fx_glass_light_uniforms(const struct fx_glass_light* light, float out_light[4], float out_color[3]);
+
 /**
  * Render from one buffer to another. False when the source cannot be sampled.
  */

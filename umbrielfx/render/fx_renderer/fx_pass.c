@@ -856,6 +856,14 @@ static void draw_animation_texture(
     glUniform1i(shader->incoming_tex, 2);
     glActiveTexture(GL_TEXTURE0);
   }
+  if (shader->light >= 0 || shader->light_color >= 0) {
+    float light[4], color[3];
+    fx_glass_light_uniforms(
+        pass->fx_offscreen_buffers != NULL ? &pass->fx_offscreen_buffers->glass_light : NULL, light, color
+    );
+    glUniform4fv(shader->light, 1, light);
+    glUniform3fv(shader->light_color, 1, color);
+  }
   if (shader->shape_tex >= 0) {
     const float available = pass->backdrop_shape != NULL ? 1.0F : 0.0F;
     fx_effect_shader_bind_uniform_data(

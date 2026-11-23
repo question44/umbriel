@@ -295,6 +295,9 @@ struct fx_renderer {
   GLint effect_light_proj, effect_light_tex_proj, effect_light_pos, effect_light_tex, effect_light_gain,
       effect_light_linear, effect_light_emission, effect_light_source_linear, effect_light_threshold,
       effect_light_source_region;
+  bool glass_light_attempted;
+  GLuint glass_light_program;
+  GLint glass_light_pos, glass_light_tex, glass_light_texel;
 
   struct wl_list buffers;           // fx_framebuffer.link
   struct wl_list textures;          // fx_texture.link

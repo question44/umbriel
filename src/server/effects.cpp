@@ -104,6 +104,21 @@ namespace umbriel {
     resolveEffectSlot(slot, EffectKind::Screen);
   }
 
+  void Server::applyGlassLight() {
+    const Effects& effects = config().effects;
+    wlr_scene_glass_light_mode mode = WLR_SCENE_GLASS_LIGHT_WALLPAPER;
+    if (effects.glassLight == "off") {
+      mode = WLR_SCENE_GLASS_LIGHT_OFF;
+    } else if (effects.glassLight == "screen") {
+      mode = WLR_SCENE_GLASS_LIGHT_SCREEN;
+    } else if (effects.glassLight == "auto") {
+      mode = WLR_SCENE_GLASS_LIGHT_AUTO;
+    }
+    wlr_scene_set_glass_light(
+        m_scene, mode, static_cast<float>(effects.glassLightRate), static_cast<float>(effects.glassLightSmoothing)
+    );
+  }
+
   void Server::reconcileEffectSelections() {
     const Effects& settings = config().effects;
     m_effectSelection.reconcile(settings);

@@ -1485,6 +1485,120 @@ static void scene_effects_light_layer_destroy(struct wl_listener* listener, void
   }
 }
 
+static int64_t glass_light_now_ms(void) {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return timespec_to_msec(&now);
+}
+
+void wlr_scene_set_glass_light(
+    struct wlr_scene* scene, enum wlr_scene_glass_light_mode mode, float rate, float smoothing
+) {
+  const bool changed = scene->glass_light_mode != mode;
+  scene->glass_light_mode = mode;
+  scene->glass_light_rate = rate > 0.0F ? rate : 15.0F;
+  scene->glass_light_smoothing = smoothing >= 0.0F ? smoothing : 0.0F;
+  if (!changed) {
+    return;
+  }
+  struct wlr_scene_output* scene_output;
+  wl_list_for_each(scene_output, &scene->outputs, link) {
+    struct fx_offscreen_buffers* fbos = fx_offscreen_buffers_try_get(scene_output->output);
+    if (fbos != NULL) {
+      // Keep the current light as the start of the glide; a new source
+      // replaces the target on its first read.
+      fbos->glass_light.has_target = fbos->glass_light.valid && mode != WLR_SCENE_GLASS_LIGHT_OFF;
+      if (mode == WLR_SCENE_GLASS_LIGHT_OFF) {
+        fbos->glass_light.valid = false;
+      }
+    }
+    // The wallpaper source needs one more optimized-blur render.
+    scene_output_damage_whole(scene_output);
+  }
+}
+
+static void damage_glass_light_nodes(struct wlr_scene_output* scene_output, struct wlr_scene_node* node);
+
+// The source this output's light reads now: AUTO resolved per output.
+static enum wlr_scene_glass_light_mode glass_light_source(
+    const struct wlr_scene* scene, const struct fx_offscreen_buffers* fbos
+) {
+  if (scene->glass_light_mode != WLR_SCENE_GLASS_LIGHT_AUTO) {
+    return scene->glass_light_mode;
+  }
+  return fbos != NULL && fbos->glass_light.live ? WLR_SCENE_GLASS_LIGHT_SCREEN : WLR_SCENE_GLASS_LIGHT_WALLPAPER;
+}
+
+void wlr_scene_output_set_glass_light_live(struct wlr_scene_output* scene_output, bool live) {
+  struct fx_offscreen_buffers* fbos = fx_offscreen_buffers_try_get(scene_output->output);
+  if (fbos == NULL || fbos->glass_light.live == live) {
+    return;
+  }
+  fbos->glass_light.live = live;
+  if (scene_output->scene->glass_light_mode == WLR_SCENE_GLASS_LIGHT_AUTO) {
+    // The other source takes over at the next frame; the wallpaper is read from
+    // the optimized blur as it is, without re-rendering it.
+    fbos->glass_light.want_wallpaper = !live;
+    fbos->glass_light.sampled_ms = 0;
+    // A frame must render for either source to be read: redraw the glass.
+    damage_glass_light_nodes(scene_output, &scene_output->scene->tree.node);
+  }
+}
+
+// Damages every glass node that reads umbriel_light on this output.
+static void damage_glass_light_nodes(struct wlr_scene_output* scene_output, struct wlr_scene_node* node) {
+  if (!node->enabled) {
+    return;
+  }
+  if (node->type == WLR_SCENE_NODE_TREE) {
+    struct wlr_scene_tree* tree = wlr_scene_tree_from_node(node);
+    struct wlr_scene_node* child;
+    wl_list_for_each(child, &tree->children, link) {
+      damage_glass_light_nodes(scene_output, child);
+    }
+    return;
+  }
+  if (node->type != WLR_SCENE_NODE_BLUR) {
+    return;
+  }
+  struct wlr_scene_blur* blur = wlr_scene_blur_from_node(node);
+  if (blur->effect == NULL || (blur->effect->light < 0 && blur->effect->light_color < 0)) {
+    return;
+  }
+  int x, y;
+  if (!wlr_scene_node_coords(node, &x, &y)) {
+    return;
+  }
+  pixman_region32_t damage;
+  pixman_region32_init_rect(&damage, x - scene_output->x, y - scene_output->y, blur->width, blur->height);
+  scale_region(&damage, scene_output->output->scale, true);
+  output_to_buffer_coords(&damage, scene_output->output);
+  scene_output_damage(scene_output, &damage);
+  pixman_region32_fini(&damage);
+}
+
+void wlr_scene_output_glass_light_tick(struct wlr_scene_output* scene_output) {
+  struct wlr_scene* scene = scene_output->scene;
+  if (scene->glass_light_mode == WLR_SCENE_GLASS_LIGHT_OFF) {
+    return;
+  }
+  struct fx_offscreen_buffers* fbos = fx_offscreen_buffers_try_get(scene_output->output);
+  if (fbos == NULL || fbos->renderer == NULL) {
+    return;
+  }
+  bool busy = false;
+  const bool changed = fx_glass_light_step(
+      fbos->renderer, &fbos->glass_light, glass_light_now_ms(), scene->glass_light_smoothing, &busy
+  );
+  if (changed) {
+    damage_glass_light_nodes(scene_output, &scene->tree.node);
+  }
+  if (busy) {
+    // Come back next frame to collect the read or take the next step.
+    wlr_output_schedule_frame(scene_output->output);
+  }
+}
+
 void wlr_scene_set_effect_light_layer(struct wlr_scene* scene, struct wlr_scene_tree* layer) {
   struct scene_effects* effects = scene_effects_get(scene, layer != NULL);
   if (effects == NULL || effects->light_layer == layer) {
@@ -3981,6 +4095,14 @@ static void scene_entry_render(struct render_list_entry* entry, const struct ren
       bool result = fx_render_pass_add_optimized_blur(fx_pass, &blur_options);
       if (result) {
         scene_blur->dirty = false;
+        if (glass_light_source(scene, fx_pass->fx_offscreen_buffers) == WLR_SCENE_GLASS_LIGHT_WALLPAPER
+            && data->capture_x == 0
+            && data->capture_y == 0) {
+          fx_render_pass_sample_glass_light(
+              fx_pass, fx_pass->fx_offscreen_buffers != NULL ? fx_pass->fx_offscreen_buffers->optimized_blur_buffer : NULL,
+              glass_light_now_ms()
+          );
+        }
       }
     }
     break;
@@ -7120,6 +7242,24 @@ static bool scene_output_build_state(
 
         scene_buffer_send_dmabuf_feedback(scene_output->scene, buffer, &options);
       }
+    }
+  }
+
+  // Screen light: the composited frame, before output effects and cursors.
+  // Wallpaper light after a switch back from the screen: the optimized blur as it is.
+  struct fx_offscreen_buffers* light_fbos = fx_pass->fx_offscreen_buffers;
+  const enum wlr_scene_glass_light_mode light_source = glass_light_source(scene_output->scene, light_fbos);
+  if (light_fbos != NULL) {
+    struct fx_glass_light* light = &light_fbos->glass_light;
+    const int64_t now_ms = glass_light_now_ms();
+    if (light_source == WLR_SCENE_GLASS_LIGHT_SCREEN) {
+      if (now_ms - light->sampled_ms >= (int64_t)(1000.0F / scene_output->scene->glass_light_rate)) {
+        fx_render_pass_sample_glass_light(fx_pass, fx_pass->buffer, now_ms);
+      }
+    } else if (light_source == WLR_SCENE_GLASS_LIGHT_WALLPAPER && light->want_wallpaper && light->fence == NULL
+               && light_fbos->optimized_blur_valid) {
+      light->want_wallpaper = false;
+      fx_render_pass_sample_glass_light(fx_pass, light_fbos->optimized_blur_buffer, now_ms);
     }
   }
 

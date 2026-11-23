@@ -111,6 +111,12 @@ namespace umbriel {
     int maxFps = 0; // 0-240, 0 follows the refresh rate
     bool inCapture = false;
     bool borderUnfocused = false;
+    // Light on liquid glass (umbriel_light): "off", "wallpaper" (the blurred
+    // wallpaper's brightest area), "screen" (the composited output's) or "auto"
+    // (the wallpaper, and the screen while a fullscreen window covers the output).
+    std::string glassLight = "wallpaper";
+    double glassLightRate = 15.0;     // screen samples per second, 1-60
+    double glassLightSmoothing = 0.4; // seconds per e-fold of the easing, 0-5
     bool operator==(const Effects&) const = default;
   };
 

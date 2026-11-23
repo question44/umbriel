@@ -24,6 +24,35 @@ struct fx_target_buffers {
   struct fx_framebuffer* backdrop_shape;
 };
 
+// Light for liquid glass (wlr_scene_set_glass_light): the output (or its
+// blurred wallpaper) reduced to a few dozen texels, read back asynchronously,
+// and reduced on the CPU to the brightest area. All GL objects are allocated
+// once per output size, never per frame.
+#define FX_GLASS_LIGHT_LEVELS 2
+struct fx_glass_light {
+  unsigned textures[FX_GLASS_LIGHT_LEVELS];
+  unsigned framebuffers[FX_GLASS_LIGHT_LEVELS];
+  int widths[FX_GLASS_LIGHT_LEVELS], heights[FX_GLASS_LIGHT_LEVELS];
+  int source_width, source_height; // output size the levels were made for
+  bool float_levels; // RGBA16F levels (else RGBA8)
+  bool failed;       // GL setup failed for this size: no light
+  unsigned pbo;
+  void* fence; // GLsync of the pending read, or NULL
+  int64_t sampled_ms; // when the last read was started
+  int64_t stepped_ms; // last smoothing step
+  bool has_target;
+  // x, y (output buffer texture coordinates), strength, r, g, b
+  float target[6];
+  float current[6];
+  bool valid; // current holds a light the shaders see
+  // Auto mode: a fullscreen window covers the output, so the screen is the source
+  bool live;
+  // Source used last frame (enum wlr_scene_glass_light_mode, never AUTO)
+  int source;
+  // Read the optimized blur at the end of the next frame (source went back to the wallpaper)
+  bool want_wallpaper;
+};
+
 /**
  * Per-output renderer framebuffers. Each buffer is allocated on first use and
  * kept until it is no longer needed or the output goes away.
@@ -38,6 +67,8 @@ struct fx_offscreen_buffers {
   // Nearest-filtered spectrum, allocated only for an audio-reading shader.
   unsigned audio_texture;
   uint8_t audio_bands[FX_AUDIO_BANDS];
+
+  struct fx_glass_light glass_light;
 
   // Linear-light composition target shared by the output swapchain
   struct fx_framebuffer* blend_buffer;
@@ -73,5 +104,7 @@ void fx_offscreen_buffers_clear_group(struct fx_offscreen_buffers* fbos);
 struct fx_offscreen_buffers* fx_offscreen_buffers_try_get(struct wlr_output* output);
 void fx_offscreen_buffers_invalidate_blend(struct wlr_output* output);
 void fx_renderer_clear_animation_buffers(struct wlr_output* output);
+// Frees the glass light's GL objects; the renderer's context must be current.
+void fx_glass_light_release(struct fx_glass_light* light);
 
 #endif

@@ -41,6 +41,10 @@ static const char kPreamble[] =
     "uniform vec2 umbriel_expand;\n"
     "uniform vec4 umbriel_palette[4];\n"
     "uniform int umbriel_palette_count;\n"
+    // Liquid-glass light (wlr_scene_set_glass_light): xy the brightest area in the
+    // backdrop texture's coordinates, z its strength (0 = no clear light), w 1 when set.
+    "uniform vec4 umbriel_light;\n"
+    "uniform vec3 umbriel_light_color;\n"
     "vec4 umbriel_sample(vec2 uv) {\n"
     "#ifndef UMBRIEL_UNBOUNDED\n"
     "  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec4(0.0);\n"
@@ -48,6 +52,17 @@ static const char kPreamble[] =
     "  vec2 p = (vec3(uv, 1.0) * umbriel_sample_matrix).xy;\n"
     "  if (any(lessThan(p, vec2(0.0))) || any(greaterThan(p, vec2(1.0)))) return vec4(0.0);\n"
     "  return texture2D(umbriel_texture, p);\n"
+    "}\n"
+    // Unit direction from uv towards the light, in the node's px (y down), or 0 without one.
+    "vec2 umbriel_light_dir(vec2 uv) {\n"
+    "  if (umbriel_light.w < 0.5) return vec2(0.0);\n"
+    "  vec2 p = (vec3(uv, 1.0) * umbriel_sample_matrix).xy;\n"
+    "  vec2 ex = (vec3(1.0, 0.0, 0.0) * umbriel_sample_matrix).xy;\n"
+    "  vec2 ey = (vec3(0.0, 1.0, 0.0) * umbriel_sample_matrix).xy;\n"
+    "  float det = ex.x * ey.y - ey.x * ex.y;\n"
+    "  if (abs(det) < 1e-12) return vec2(0.0);\n"
+    "  vec2 d = mat2(ey.y, -ex.y, -ey.x, ex.x) * (umbriel_light.xy - p) / det * umbriel_size;\n"
+    "  return dot(d, d) > 1e-6 ? normalize(d) : vec2(0.0);\n"
     "}\n"
     "vec4 umbriel_sample_incoming(vec2 uv) {\n"
     "#ifndef UMBRIEL_UNBOUNDED\n"
@@ -458,6 +473,8 @@ struct fx_effect_shader* fx_effect_shader_create(
   shader->audio_tex = glGetUniformLocation(shader->program, "umbriel_audio_bands");
   shader->incoming_tex = glGetUniformLocation(shader->program, "umbriel_incoming_texture");
   shader->shape_tex = glGetUniformLocation(shader->program, "umbriel_shape_texture");
+  shader->light = glGetUniformLocation(shader->program, "umbriel_light");
+  shader->light_color = glGetUniformLocation(shader->program, "umbriel_light_color");
   shader->previous_tex = glGetUniformLocation(shader->program, "umbriel_previous_texture");
   shader->previous_sample_matrix = glGetUniformLocation(shader->program, "umbriel_previous_sample_matrix");
   shader->progress = glGetUniformLocation(shader->program, "umbriel_progress");

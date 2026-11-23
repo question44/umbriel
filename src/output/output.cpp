@@ -2199,6 +2199,9 @@ namespace umbriel {
     // since the last commit is diffed here exactly once; the umbrielfx scene's
     // own needs_frame listener is what scheduled this frame for them.
     paceCursorPlaneTransition();
+    // Collect the glass light's read and ease it; damages the glass reading it.
+    wlr_scene_output_set_glass_light_live(m_sceneOutput, fullscreenCoversOutput());
+    wlr_scene_output_glass_light_tick(m_sceneOutput);
     const bool sceneChanged = wlr_scene_output_needs_frame(m_sceneOutput);
     if (sceneChanged) {
       // Scene motion under a stationary cursor must reach the client before its next press.

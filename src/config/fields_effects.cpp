@@ -246,6 +246,17 @@ namespace umbriel {
           registry::integer("max_fps", 0, 240, &Effects::maxFps),
           registry::boolean("in_capture", &Effects::inCapture),
           registry::boolean("border_unfocused", &Effects::borderUnfocused),
+          registry::choice(
+              "glass_light", &Effects::glassLight,
+              registry::Choices<std::string>{
+                  {.name = "off", .value = "off"},
+                  {.name = "wallpaper", .value = "wallpaper"},
+                  {.name = "screen", .value = "screen"},
+                  {.name = "auto", .value = "auto"},
+              }
+          ),
+          registry::real("glass_light_rate", 1.0, 60.0, &Effects::glassLightRate),
+          registry::real("glass_light_smoothing", 0.0, 5.0, &Effects::glassLightSmoothing),
           effectField("border", &Effects::border, EffectKind::Border),
           effectField("window", &Effects::window, EffectKind::Window),
           effectField("screen", &Effects::screen, EffectKind::Screen),

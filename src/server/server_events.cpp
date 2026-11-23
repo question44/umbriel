@@ -807,6 +807,7 @@ namespace umbriel {
     }
     if (effects.effects) {
       reconcileEffectSelections();
+      applyGlassLight();
     }
     if (effects.animation || effects.effects) {
       effectRegistry().prepare(m_renderer);

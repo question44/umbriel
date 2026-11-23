@@ -140,6 +140,18 @@ struct wlr_scene_tree {
   struct wl_list children; // wlr_scene_node.link
 };
 
+/** Where the light on liquid glass (umbriel_light) comes from. */
+enum wlr_scene_glass_light_mode {
+  WLR_SCENE_GLASS_LIGHT_OFF = 0,
+  // The blurred wallpaper, whenever the optimized blur is re-rendered
+  WLR_SCENE_GLASS_LIGHT_WALLPAPER,
+  // The composited output, at most `rate` times a second while it changes
+  WLR_SCENE_GLASS_LIGHT_SCREEN,
+  // The wallpaper, and the screen while a fullscreen window covers the output
+  // (wlr_scene_output_set_glass_light_live)
+  WLR_SCENE_GLASS_LIGHT_AUTO,
+};
+
 /** The root scene-graph node. */
 struct wlr_scene {
   struct wlr_scene_tree tree;
@@ -165,6 +177,11 @@ struct wlr_scene {
     bool highlight_transparent_region;
 
     struct blur_data blur_data;
+
+    // Liquid-glass light (wlr_scene_set_glass_light)
+    enum wlr_scene_glass_light_mode glass_light_mode;
+    float glass_light_rate;      // samples per second in screen mode
+    float glass_light_smoothing; // seconds per e-fold of the easing
 
     // Painted where no node covers the output. A rect matching it exactly
     // is dropped from the render list instead of drawn.
@@ -1366,5 +1383,21 @@ void wlr_scene_layer_surface_v1_configure(
  * scene-graph.
  */
 struct wlr_scene_tree* wlr_scene_drag_icon_create(struct wlr_scene_tree* parent, struct wlr_drag_icon* drag_icon);
+
+/**
+ * Light for liquid glass: backdrop programs that read umbriel_light see the
+ * brightest area of their output, eased over `smoothing` seconds.
+ */
+void wlr_scene_set_glass_light(
+    struct wlr_scene* scene, enum wlr_scene_glass_light_mode mode, float rate, float smoothing
+);
+/**
+ * Advances the glass light of one output: collects a finished read, eases the
+ * light and damages the glass that reads it. Call once per output frame event,
+ * before wlr_scene_output_needs_frame.
+ */
+void wlr_scene_output_glass_light_tick(struct wlr_scene_output* scene_output);
+/** Auto mode: whether a fullscreen window covers this output (screen as the source). */
+void wlr_scene_output_set_glass_light_live(struct wlr_scene_output* scene_output, bool live);
 
 #endif

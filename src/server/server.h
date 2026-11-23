@@ -250,6 +250,8 @@ namespace umbriel {
     void resolveEffectSlot(EffectSlot& slot, EffectKind kind, bool active = true);
     void resolveOutputEffect(Output& output);
     void reconcileEffectSelections();
+    // Hands [effects] glass_light* to the scene.
+    void applyGlassLight();
     EffectSlotActionResult
     applyEffectAction(EffectSlot& slot, EffectKind kind, EffectSlotAction action, std::string_view argument);
     // Nested callbacks can change focus/rules while rendering. Such changes

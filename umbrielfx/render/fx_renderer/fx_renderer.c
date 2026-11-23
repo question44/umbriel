@@ -112,6 +112,7 @@ static inline void free_shaders(struct fx_renderer* renderer) {
   glDeleteProgram(renderer->shaders.blur2_with_effects_composite.blur.base.program);
   glDeleteProgram(renderer->shaders.blur2_with_effects_composite_corners.blur.base.program);
   glDeleteProgram(renderer->effect_light_program);
+  glDeleteProgram(renderer->glass_light_program);
   pop_fx_debug(renderer);
 }
 

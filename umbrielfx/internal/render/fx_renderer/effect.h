@@ -36,6 +36,7 @@ struct fx_effect_shader {
   GLint proj, tex_proj, position, tex, sample_matrix;
   GLint previous_tex, previous_sample_matrix;
   GLint incoming_tex, audio_tex, shape_tex;
+  GLint light, light_color;
   GLint progress, linear_progress, direction, random_seed;
   GLint size, scale, expand;
   bool shape_preserving;
