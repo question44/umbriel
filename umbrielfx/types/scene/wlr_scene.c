@@ -551,6 +551,8 @@ void wlr_scene_node_destroy(struct wlr_scene_node* node) {
   } else if (node->type == WLR_SCENE_NODE_BLUR) {
     struct wlr_scene_blur* blur = wlr_scene_blur_from_node(node);
     linked_node_destroy(&blur->transparency_mask_source);
+    fx_effect_shader_unref(blur->effect);
+    blur->effect = NULL;
   }
 
   assert(wl_list_empty(&node->events.destroy.listener_list));
@@ -2470,6 +2472,32 @@ void wlr_scene_blur_set_clipped_region(struct wlr_scene_blur* blur, struct clipp
   scene_node_update(&blur->node, NULL);
 }
 
+void wlr_scene_blur_set_effect(
+    struct wlr_scene_blur* blur, struct fx_effect_shader* shader, const struct fx_animation_parameters* parameters,
+    int padding
+) {
+  struct fx_animation_parameters next = {0};
+  if (shader != NULL && parameters != NULL) {
+    next = *parameters;
+  }
+  if (shader == NULL) {
+    padding = 0;
+  }
+  if (blur->effect == shader
+      && blur->effect_padding == padding
+      && parameters_equal(&blur->effect_parameters, &next)) {
+    return;
+  }
+  // Damage the old reach before it shrinks.
+  scene_node_update(&blur->node, NULL);
+  fx_effect_shader_ref(shader);
+  fx_effect_shader_unref(blur->effect);
+  blur->effect = shader;
+  blur->effect_parameters = next;
+  blur->effect_padding = padding;
+  scene_node_update(&blur->node, NULL);
+}
+
 void wlr_scene_set_background_color(struct wlr_scene* scene, const float color[static 4]) {
   if (memcmp(scene->background_color, color, sizeof(scene->background_color)) == 0) {
     return;
@@ -3985,7 +4013,19 @@ static void scene_entry_render(struct render_list_entry* entry, const struct ren
             .inside = blur->clipped_region.inside,
         },
     };
-    fx_render_pass_add_blur(fx_pass, &blur_options);
+    if (blur->effect != NULL) {
+      struct fx_backdrop_effect effect = {
+          .shader = blur->effect,
+          .parameters = &blur->effect_parameters,
+          .logical_box = {.width = blur->width, .height = blur->height},
+          .corner_radius = {blur_corners.top_left, blur_corners.top_right, blur_corners.bottom_right,
+                            blur_corners.bottom_left},
+          .padding = (int)ceilf((float)blur->effect_padding * data->scale),
+      };
+      fx_render_pass_add_blur_effect(fx_pass, &blur_options, &effect);
+    } else {
+      fx_render_pass_add_blur(fx_pass, &blur_options);
+    }
     break;
   }
 
@@ -6123,7 +6163,7 @@ static bool should_blur_node_extend_damage(
     struct wlr_scene_blur* blur_node = wlr_scene_blur_from_node(node);
     // No artifact prevention needed when the whole blur is already
     // rendered
-    if (blur_node->should_only_blur_bottom_layer && blur_node->strength == 1.0) {
+    if (blur_node->should_only_blur_bottom_layer && blur_node->strength == 1.0 && blur_node->effect == NULL) {
       fx_pass->has_blur = true;
       return false;
     }
@@ -6152,7 +6192,14 @@ static bool apply_blur_region(
     pixman_region32_t* blur_padding_region
 ) {
   bool should_compensate_blur = false;
-  const int sample_size = blur_data_calc_size(blur_data);
+  int sample_size = blur_data_calc_size(blur_data);
+  // A backdrop effect also reads its padding: changes there redraw the node.
+  if (node->type == WLR_SCENE_NODE_BLUR) {
+    const struct wlr_scene_blur* blur = wlr_scene_blur_from_node(node);
+    if (blur->effect != NULL) {
+      sample_size += (int)ceilf((float)blur->effect_padding * render_data->scale);
+    }
+  }
 
   pixman_region32_t node_visible_region;
   pixman_region32_init(&node_visible_region);

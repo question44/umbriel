@@ -14,7 +14,7 @@ namespace umbriel {
 
   class Section;
 
-  enum class EffectKind : std::uint8_t { Animation, Border, Window, Screen, Cursor };
+  enum class EffectKind : std::uint8_t { Animation, Border, Window, Screen, Cursor, Backdrop };
   enum class EffectSelectionPolicy : std::uint8_t { UnusedFirst, RoundRobin, Random };
   enum class EffectReferenceConstraint : std::uint8_t { PresetOnly, PresetOrPool, PoolRequired };
 

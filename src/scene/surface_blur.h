@@ -42,6 +42,8 @@ namespace umbriel {
     void setLive(bool live);
     // Disable the node (unmap path); update() re-enables.
     void hide();
+    // The current node, or nullptr before the first update that wants one.
+    wlr_scene_blur* node() const { return m_node; }
 
   private:
     wlr_scene_blur* m_node = nullptr;

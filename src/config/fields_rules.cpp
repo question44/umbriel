@@ -263,6 +263,7 @@ namespace umbriel {
           boolean("shadow", &W::shadow),
           optionalEffectField("border_effect", &W::borderEffect),
           optionalEffectField("window_effect", &W::windowEffect),
+          optionalEffectField("backdrop_effect", &W::backdropEffect),
           registry::table<W>("default_floating_size", self, floatingSize),
           registry::table<W>("default_floating_size_px", self, floatingSizePx),
           registry::choice("vrr", &W::vrr, vrrModes()),
@@ -345,6 +346,9 @@ namespace umbriel {
       recordRuleEffect(context, keys, "window_effect", EffectKind::Window, [&loaded, index] {
         loaded.windowRules[index].windowEffect.reset();
       });
+      recordRuleEffect(context, keys, "backdrop_effect", EffectKind::Backdrop, [&loaded, index] {
+        loaded.windowRules[index].backdropEffect.reset();
+      });
       return true;
     }
 
@@ -375,6 +379,7 @@ namespace umbriel {
           registry::boolean("blur_popups", &L::blurPopups),
           registry::real("blur_ignore_alpha", 0.0, 1.0, &L::ignoreAlpha),
           registry::boolean("blur_optimized", &L::optimized),
+          optionalEffectField("backdrop_effect", &L::backdropEffect),
       };
       return fields;
     }

@@ -19,6 +19,7 @@
  * compositors need to implement custom rendering logic.
  */
 
+#include "umbrielfx/render/effect.h"
 #include "umbrielfx/types/fx/blur_data.h"
 #include "umbrielfx/types/fx/clipped_region.h"
 #include "umbrielfx/types/linked_node.h"
@@ -240,6 +241,12 @@ struct wlr_scene_blur {
   bool should_only_blur_bottom_layer;
 
   struct linked_node transparency_mask_source;
+
+  // Backdrop-kind program drawn in place of the blur; NULL draws the blur.
+  struct fx_effect_shader* effect;
+  struct fx_animation_parameters effect_parameters;
+  // Logical px the program may sample past the node bounds.
+  int effect_padding;
 };
 
 /** A scene-graph node telling SceneFX to render the optimized blur */
@@ -924,6 +931,15 @@ void wlr_scene_blur_set_ignore_alpha(struct wlr_scene_blur* blur, float ignore_a
  * NOTE: The positioning is node-relative.
  */
 void wlr_scene_blur_set_clipped_region(struct wlr_scene_blur* blur, struct clipped_region clipped_region);
+
+/**
+ * Draws a backdrop-kind effect program in place of the blur, or the blur
+ * again with a NULL shader. padding is in logical px.
+ */
+void wlr_scene_blur_set_effect(
+    struct wlr_scene_blur* blur, struct fx_effect_shader* shader, const struct fx_animation_parameters* parameters,
+    int padding
+);
 
 /**
  * If this node represents a wlr_scene_optimized_blur node, that node will

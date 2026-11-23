@@ -42,13 +42,17 @@ static const char kPreamble[] =
     "uniform vec4 umbriel_palette[4];\n"
     "uniform int umbriel_palette_count;\n"
     "vec4 umbriel_sample(vec2 uv) {\n"
+    "#ifndef UMBRIEL_UNBOUNDED\n"
     "  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec4(0.0);\n"
+    "#endif\n"
     "  vec2 p = (vec3(uv, 1.0) * umbriel_sample_matrix).xy;\n"
     "  if (any(lessThan(p, vec2(0.0))) || any(greaterThan(p, vec2(1.0)))) return vec4(0.0);\n"
     "  return texture2D(umbriel_texture, p);\n"
     "}\n"
     "vec4 umbriel_sample_incoming(vec2 uv) {\n"
+    "#ifndef UMBRIEL_UNBOUNDED\n"
     "  if (any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0)))) return vec4(0.0);\n"
+    "#endif\n"
     "  vec2 p = (vec3(uv, 1.0) * umbriel_sample_matrix).xy;\n"
     "  if (any(lessThan(p, vec2(0.0))) || any(greaterThan(p, vec2(1.0)))) return vec4(0.0);\n"
     "  return texture2D(umbriel_incoming_texture, p);\n"
@@ -121,6 +125,28 @@ static const char kMaskSection[] =
     "}\n";
 static const char kWindowSuffix[] =
     "\nvoid main() { gl_FragColor = mix(umbriel_sample(v_texcoord), window(v_texcoord), umbriel_mask(v_texcoord)); }\n";
+// Backdrop: sampling may leave the drawn rectangle (up to the preset's padding),
+// and the result covers only the rounded node shape; the window is drawn over it.
+static const char kBackdropPrefix[] = "#define UMBRIEL_UNBOUNDED 1\n";
+// umbriel_shape: coverage of the surface's own drawn shape (alpha past the
+// blur's ignore_alpha threshold) in the same coordinates as umbriel_sample,
+// 0 outside it. Without a shape (windows) it is 1 inside the drawn rectangle.
+static const char kBackdropSection[] =
+    "vec4 umbriel_sample_raw(vec2 uv) { return umbriel_sample_incoming(uv); }\n"
+    "uniform sampler2D umbriel_shape_texture;\n"
+    "uniform float umbriel_shape_available;\n"
+    "uniform float umbriel_shape_threshold;\n"
+    "float umbriel_shape(vec2 uv) {\n"
+    "  if (umbriel_shape_available < 0.5) {\n"
+    "    return any(lessThan(uv, vec2(0.0))) || any(greaterThan(uv, vec2(1.0))) ? 0.0 : 1.0;\n"
+    "  }\n"
+    "  vec2 p = (vec3(uv, 1.0) * umbriel_sample_matrix).xy;\n"
+    "  if (any(lessThan(p, vec2(0.0))) || any(greaterThan(p, vec2(1.0)))) return 0.0;\n"
+    "  float a = texture2D(umbriel_shape_texture, p).a;\n"
+    "  return smoothstep(umbriel_shape_threshold - 0.05, umbriel_shape_threshold + 0.05, a);\n"
+    "}\n";
+static const char kBackdropSuffix[] =
+    "\nvoid main() { gl_FragColor = backdrop(v_texcoord) * umbriel_mask(v_texcoord); }\n";
 static const char kScreenSuffix[] = "\nvoid main() { gl_FragColor = screen(v_texcoord); }\n";
 // The cursor kind is in place too, so it needs the mask helper before its own uniform.
 static const char kCursorSection[] = "uniform vec2 umbriel_pointer;\n"
@@ -142,6 +168,8 @@ static const char* kind_name(enum fx_effect_kind kind) {
     return "screen";
   case FX_EFFECT_CURSOR:
     return "cursor";
+  case FX_EFFECT_BACKDROP:
+    return "backdrop";
   }
   return "effect";
 }
@@ -170,6 +198,11 @@ static void kind_sections(enum fx_effect_kind kind, const char** section, const 
     *section = kMaskSection;
     *extra = kCursorSection;
     *suffix = kCursorSuffix;
+    return;
+  case FX_EFFECT_BACKDROP:
+    *section = kMaskSection;
+    *extra = kBackdropSection;
+    *suffix = kBackdropSuffix;
     return;
   }
   *section = "";
@@ -383,6 +416,7 @@ struct fx_effect_shader* fx_effect_shader_create(
   const char* extra = NULL;
   const char* suffix = NULL;
   kind_sections(kind, &section, &extra, &suffix);
+  const char* prefix = kind == FX_EFFECT_BACKDROP ? kBackdropPrefix : "";
   struct fx_renderer* fx = fx_get_renderer(renderer);
   struct wlr_egl_context previous;
   if (!wlr_egl_make_current(fx->egl, &previous)) {
@@ -391,7 +425,8 @@ struct fx_effect_shader* fx_effect_shader_create(
   struct fx_effect_shader* shader = calloc(1, sizeof(*shader));
   static const char line[] = "#line 1\n";
   const size_t length =
-      sizeof(kPreamble) + strlen(section) + strlen(extra) + sizeof(line) + strlen(source) + strlen(suffix) + 1;
+      strlen(prefix) + sizeof(kPreamble) + strlen(section) + strlen(extra) + sizeof(line) + strlen(source)
+      + strlen(suffix) + 1;
   char* fragment = malloc(length);
   if (shader == NULL || fragment == NULL) {
     free(shader);
@@ -399,7 +434,7 @@ struct fx_effect_shader* fx_effect_shader_create(
     wlr_egl_restore_context(&previous);
     return NULL;
   }
-  snprintf(fragment, length, "%s%s%s%s%s%s", kPreamble, section, extra, line, source, suffix);
+  snprintf(fragment, length, "%s%s%s%s%s%s%s", prefix, kPreamble, section, extra, line, source, suffix);
   wlr_log(WLR_INFO, "Compiling %s shader: %s", kind_name(kind), label);
   shader->program = link_program(fragment);
   free(fragment);
@@ -422,6 +457,7 @@ struct fx_effect_shader* fx_effect_shader_create(
   shader->sample_matrix = glGetUniformLocation(shader->program, "umbriel_sample_matrix");
   shader->audio_tex = glGetUniformLocation(shader->program, "umbriel_audio_bands");
   shader->incoming_tex = glGetUniformLocation(shader->program, "umbriel_incoming_texture");
+  shader->shape_tex = glGetUniformLocation(shader->program, "umbriel_shape_texture");
   shader->previous_tex = glGetUniformLocation(shader->program, "umbriel_previous_texture");
   shader->previous_sample_matrix = glGetUniformLocation(shader->program, "umbriel_previous_sample_matrix");
   shader->progress = glGetUniformLocation(shader->program, "umbriel_progress");

@@ -46,6 +46,10 @@ enum fx_effect_kind {
   FX_EFFECT_WINDOW,
   FX_EFFECT_SCREEN,
   FX_EFFECT_CURSOR,
+  // Drawn by a blur node in place of its blur: umbriel_sample reads the blurred
+  // backdrop and umbriel_sample_raw the unblurred one, both past the node's
+  // bounds; the window is drawn on top afterwards.
+  FX_EFFECT_BACKDROP,
 };
 
 enum fx_uniform_type {

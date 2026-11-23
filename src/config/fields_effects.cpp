@@ -120,6 +120,9 @@ namespace umbriel {
         case EffectKind::Cursor:
           keys.integer("radius", 0, 4096, preset.radius);
           break;
+        case EffectKind::Backdrop:
+          keys.integer("padding", 0, 1024, preset.padding);
+          break;
         case EffectKind::Animation:
         case EffectKind::Window:
         case EffectKind::Screen:
@@ -235,7 +238,7 @@ namespace umbriel {
                   description.path = key;
                   keys.push_back(std::move(description));
                 };
-                add("kind", KeyDescription("enum").withValues({"animation", "border", "window", "screen", "cursor"}));
+                add("kind", KeyDescription("enum").withValues({"animation", "border", "window", "screen", "cursor", "backdrop"}));
                 add("shader", KeyDescription("string").withFormat("path"));
                 add("palette", KeyDescription("bool"));
                 add("padding", KeyDescription("int").withRange(0, 1024));

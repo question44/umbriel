@@ -28,6 +28,7 @@ namespace umbriel {
     m_border.clear();
     m_window.clear();
     m_overlay = false;
+    m_backdrop.clear();
   }
 
   void ViewEffects::syncNames(const Effects& effects) {
@@ -60,7 +61,28 @@ namespace umbriel {
     effectRegistry().removeInstance(owner);
   }
 
+  void ViewEffects::applyBackdrop(const ApplyInput& input) {
+    if (input.blur == nullptr) {
+      return;
+    }
+    EffectRegistry& registry = effectRegistry();
+    fx_effect_shader* shader = m_backdrop.empty() ? nullptr : registry.preset(m_backdrop, EffectKind::Backdrop);
+    const EffectPreset* preset = shader != nullptr ? registry.presetConfig(m_backdrop) : nullptr;
+    if (preset == nullptr) {
+      wlr_scene_blur_set_effect(input.blur, nullptr, nullptr, 0);
+      m_backdropBound = false;
+      return;
+    }
+    // Static: umbriel_time stays 0, so the node redraws only when its backdrop or the window changes.
+    fx_animation_parameters parameters{};
+    parameters.scale = input.scale;
+    registry.fillTimeUniforms(parameters, 0.0F, *preset, shader);
+    wlr_scene_blur_set_effect(input.blur, shader, &parameters, preset->padding);
+    m_backdropBound = true;
+  }
+
   void ViewEffects::apply(const ApplyInput& input) {
+    applyBackdrop(input);
     EffectRegistry& registry = effectRegistry();
     const bool gateOpen = input.border != nullptr && !m_border.empty() && borderEffectApplies(input.gate);
     fx_effect_shader* shader = gateOpen ? registry.preset(m_border, EffectKind::Border) : nullptr;

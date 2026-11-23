@@ -520,6 +520,8 @@ namespace umbriel {
     // Override [effects] border and window for windows this rule matches; "off" disables the default.
     std::optional<std::string> borderEffect;
     std::optional<std::string> windowEffect;
+    // A backdrop preset drawn by the window's blur node in place of its blur; "off" disables it.
+    std::optional<std::string> backdropEffect;
 
     // See RegexPatterns: the regexes are derived from the patterns, so equality compares the patterns alone.
     bool operator==(const WindowRule& other) const {
@@ -583,7 +585,8 @@ namespace umbriel {
           && cornerRadius == other.cornerRadius
           && shadow == other.shadow
           && borderEffect == other.borderEffect
-          && windowEffect == other.windowEffect;
+          && windowEffect == other.windowEffect
+          && backdropEffect == other.backdropEffect;
     }
   };
 
@@ -635,6 +638,7 @@ namespace umbriel {
     std::optional<bool> shadow;
     std::optional<std::string> borderEffect;
     std::optional<std::string> windowEffect;
+    std::optional<std::string> backdropEffect;
     bool operator==(const ResolvedWindowRule&) const = default;
   };
 
@@ -655,6 +659,8 @@ namespace umbriel {
     std::optional<double> dimBehind;
     std::optional<double> ignoreAlpha;
     std::optional<bool> optimized;
+    // A backdrop preset drawn by the surface's blur node in place of its blur; "off" disables it.
+    std::optional<std::string> backdropEffect;
 
     // See WindowRule: the regexes are derived from the patterns.
     bool operator==(const LayerRule& other) const {
@@ -665,7 +671,8 @@ namespace umbriel {
           && blurPopups == other.blurPopups
           && dimBehind == other.dimBehind
           && ignoreAlpha == other.ignoreAlpha
-          && optimized == other.optimized;
+          && optimized == other.optimized
+          && backdropEffect == other.backdropEffect;
     }
   };
 
@@ -675,6 +682,7 @@ namespace umbriel {
     std::optional<double> dimBehind;
     std::optional<double> ignoreAlpha;
     std::optional<bool> optimized;
+    std::optional<std::string> backdropEffect;
     bool operator==(const ResolvedLayerRule&) const = default;
   };
 

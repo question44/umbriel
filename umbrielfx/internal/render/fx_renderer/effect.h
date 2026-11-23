@@ -12,6 +12,7 @@
 
 struct fx_animation_history;
 struct fx_gles_render_pass;
+struct fx_render_blur_pass_options;
 struct fx_renderer;
 struct wlr_output;
 
@@ -34,7 +35,7 @@ struct fx_effect_shader {
   GLuint program;
   GLint proj, tex_proj, position, tex, sample_matrix;
   GLint previous_tex, previous_sample_matrix;
-  GLint incoming_tex, audio_tex;
+  GLint incoming_tex, audio_tex, shape_tex;
   GLint progress, linear_progress, direction, random_seed;
   GLint size, scale, expand;
   bool shape_preserving;
@@ -113,6 +114,23 @@ struct fx_effect_composite {
   const struct fx_cursor_path* pointer_path;
   const float* audio; // bands followed by availability; NULL supplies zero
 };
+
+// A backdrop-kind program drawn by a blur node in place of its blur.
+struct fx_backdrop_effect {
+  struct fx_effect_shader* shader;
+  const struct fx_animation_parameters* parameters;
+  struct wlr_box logical_box; // node box, logical
+  float corner_radius[4];     // tl, tr, br, bl logical px
+  int padding;                // buffer px the program may sample past the node box
+};
+
+// Blurs the target under the node (dst_box of the options) and its padding,
+// then draws the program over the node's rounded shape with the blurred and
+// unblurred backdrops as inputs.
+void fx_render_pass_add_blur_effect(
+    struct fx_gles_render_pass* pass, struct fx_render_blur_pass_options* fx_options,
+    const struct fx_backdrop_effect* effect
+);
 
 // Pops the capture begun by fx_render_pass_begin_animation and draws it
 // through the composite's program.

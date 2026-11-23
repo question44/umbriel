@@ -58,6 +58,9 @@ struct fx_gles_render_pass {
   struct fx_offscreen_buffers* fx_offscreen_buffers;
   unsigned animation_depth;
   struct wlr_texture* workspace_incoming; // bound only while compositing a workspace pair
+  bool effect_keeps_stencil;              // a backdrop effect draws through the blur's alpha mask
+  struct wlr_texture* backdrop_shape;     // the surface's alpha, output-aligned, for a backdrop effect
+  float backdrop_shape_threshold;         // the blur's ignore_alpha for that shape
   // A scratch backdrop beneath an isolated subtree, excluded from composition.
   unsigned isolation_depth;
   bool isolation_content;

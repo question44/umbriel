@@ -63,6 +63,7 @@ namespace umbriel {
     );
     void hideBlur();
     void setBlurLive(bool live) { m_blur.setLive(live); }
+    wlr_scene_blur* blurNode() const { return m_blur.node(); }
 
     // Shadow
     void createShadow(wlr_scene_tree* frame);

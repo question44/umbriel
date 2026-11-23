@@ -18,6 +18,10 @@ struct fx_target_buffers {
   struct fx_framebuffer* in_place_source;
   struct fx_framebuffer* animation_buffers[FX_ANIMATION_DEPTH];
   struct fx_framebuffer* animation_backdrop;
+  // Unblurred copy of the target around a blur node with a backdrop effect
+  struct fx_framebuffer* backdrop_source;
+  // The surface's own alpha around a blur node with a backdrop effect
+  struct fx_framebuffer* backdrop_shape;
 };
 
 /**

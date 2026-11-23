@@ -82,6 +82,8 @@ vec4 animation(vec2 uv) {
         return FX_EFFECT_SCREEN;
       case EffectKind::Cursor:
         return FX_EFFECT_CURSOR;
+      case EffectKind::Backdrop:
+        return FX_EFFECT_BACKDROP;
       }
       return FX_EFFECT_ANIMATION;
     }
@@ -173,6 +175,10 @@ vec4 animation(vec2 uv) {
     for (const WindowRule& rule : settings.windowRules) {
       add(rule.borderEffect.value_or(""));
       add(rule.windowEffect.value_or(""));
+      add(rule.backdropEffect.value_or(""));
+    }
+    for (const LayerRule& rule : settings.layerRules) {
+      add(rule.backdropEffect.value_or(""));
     }
     for (const OutputRule& rule : settings.outputs) {
       add(rule.screenEffect.value_or(""));

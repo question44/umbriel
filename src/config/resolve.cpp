@@ -422,6 +422,9 @@ namespace umbriel {
       if (rule.windowEffect) {
         resolved.windowEffect = rule.windowEffect;
       }
+      if (rule.backdropEffect) {
+        resolved.backdropEffect = rule.backdropEffect;
+      }
     }
     return resolved;
   }
@@ -454,6 +457,9 @@ namespace umbriel {
       }
       if (rule.optimized) {
         resolved.optimized = rule.optimized;
+      }
+      if (rule.backdropEffect) {
+        resolved.backdropEffect = rule.backdropEffect;
       }
     }
     return resolved;

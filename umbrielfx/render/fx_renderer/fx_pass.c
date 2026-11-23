@@ -856,6 +856,23 @@ static void draw_animation_texture(
     glUniform1i(shader->incoming_tex, 2);
     glActiveTexture(GL_TEXTURE0);
   }
+  if (shader->shape_tex >= 0) {
+    const float available = pass->backdrop_shape != NULL ? 1.0F : 0.0F;
+    fx_effect_shader_bind_uniform_data(
+        shader, "umbriel_shape_available", FX_UNIFORM_FLOAT, 1, &available, sizeof(available)
+    );
+    fx_effect_shader_bind_uniform_data(
+        shader, "umbriel_shape_threshold", FX_UNIFORM_FLOAT, 1, &pass->backdrop_shape_threshold,
+        sizeof(pass->backdrop_shape_threshold)
+    );
+    struct wlr_texture* shape = pass->backdrop_shape != NULL ? pass->backdrop_shape : wlr_texture;
+    glActiveTexture(GL_TEXTURE4);
+    glBindTexture(GL_TEXTURE_2D, fx_get_texture(shape)->tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glUniform1i(shader->shape_tex, 4);
+    glActiveTexture(GL_TEXTURE0);
+  }
   glUniform1f(shader->progress, parameters->progress);
   glUniform1f(shader->linear_progress, parameters->linear_progress);
   glUniform1f(shader->direction, parameters->direction);
@@ -881,7 +898,7 @@ static void draw_animation_texture(
     }
     fx_effect_shader_bind_uniform(shader, &radius);
   }
-  if (shader->kind == FX_EFFECT_WINDOW || shader->kind == FX_EFFECT_CURSOR) {
+  if (shader->kind == FX_EFFECT_WINDOW || shader->kind == FX_EFFECT_CURSOR || shader->kind == FX_EFFECT_BACKDROP) {
     struct fx_uniform corners = {.name = "umbriel_corner_radius", .type = FX_UNIFORM_VEC4, .count = 1};
     if (corner_radius != NULL) {
       for (unsigned i = 0; i < 4; i++) {
@@ -950,7 +967,9 @@ static void draw_animation_texture(
     glDisable(GL_BLEND);
   }
   glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-  glDisable(GL_STENCIL_TEST);
+  if (!pass->effect_keeps_stencil) {
+    glDisable(GL_STENCIL_TEST);
+  }
   if (mark_updated) {
     render_pass_mark_updated(pass, box, clip);
   }
@@ -962,6 +981,11 @@ static void draw_animation_texture(
   }
   if (shader->incoming_tex >= 0) {
     glActiveTexture(GL_TEXTURE2);
+    glBindTexture(GL_TEXTURE_2D, 0);
+    glActiveTexture(GL_TEXTURE0);
+  }
+  if (shader->shape_tex >= 0) {
+    glActiveTexture(GL_TEXTURE4);
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
   }
@@ -3069,6 +3093,158 @@ void fx_render_pass_add_blur(struct fx_gles_render_pass* pass, struct fx_render_
   }
 
 finish:
+  pop_fx_debug(renderer);
+  TRACY_BOTH_ZONES_END;
+}
+
+void fx_render_pass_add_blur_effect(
+    struct fx_gles_render_pass* pass, struct fx_render_blur_pass_options* fx_options,
+    const struct fx_backdrop_effect* effect
+) {
+  if (pass->fx_offscreen_buffers == NULL) {
+    return;
+  }
+  struct fx_renderer* renderer = pass->buffer->renderer;
+  TRACY_BOTH_ZONES_START(renderer);
+  push_fx_debug(renderer);
+
+  const struct wlr_box box = fx_options->tex_options.base.dst_box;
+  const pixman_region32_t* clip = fx_options->tex_options.base.clip;
+  struct wlr_texture* blurred_texture = NULL;
+  struct wlr_texture* raw_texture = NULL;
+  pixman_region32_t reach;
+  pixman_region32_init(&reach);
+
+  // What the program may read: the damaged part of the node, grown by the padding.
+  struct fx_framebuffer* backdrop = animation_backdrop(pass);
+  const int width = backdrop->buffer->width, height = backdrop->buffer->height;
+  if (clip != NULL) {
+    pixman_region32_copy(&reach, clip);
+  } else {
+    pixman_region32_init_rect(&reach, box.x, box.y, box.width, box.height);
+  }
+  pixman_region32_intersect_rect(&reach, &reach, box.x, box.y, box.width, box.height);
+  if (pixman_region32_empty(&reach)) {
+    goto finish;
+  }
+  wlr_region_expand(&reach, &reach, effect->padding);
+  pixman_region32_intersect_rect(&reach, &reach, 0, 0, width, height);
+
+  // Unblurred copy: the program samples it while writing the target.
+  struct fx_framebuffer* source = ensure_offscreen_buffer(pass, &target_buffers(pass)->backdrop_source, true);
+  if (source == NULL) {
+    goto finish;
+  }
+  pixman_region32_t copy_region;
+  pixman_region32_init(&copy_region);
+  pixman_region32_copy(&copy_region, &reach);
+  wlr_region_expand(&copy_region, &copy_region, blur_data_calc_size(fx_options->blur_data));
+  pixman_region32_intersect_rect(&copy_region, &copy_region, 0, 0, width, height);
+  const bool copied = fx_render_pass_read_to_buffer(pass, &copy_region, source, backdrop);
+  pixman_region32_fini(&copy_region);
+  fx_framebuffer_bind(pass->buffer);
+  if (!copied) {
+    pass->animation_failed = true;
+    goto finish;
+  }
+
+  // Blurred backdrop over the same reach. The optimized buffer already holds it.
+  const bool has_strength = fx_options->blur_strength < 1.0;
+  struct fx_offscreen_buffers* fbos = pass->fx_offscreen_buffers;
+  const bool use_optimized = fx_options->use_optimized_blur
+      && pass->group_depth == 0
+      && fbos->optimized_blur_buffer != NULL
+      && !fx_render_pass_optimized_blur_stale(pass);
+  struct fx_framebuffer* blurred = NULL;
+  if (use_optimized && !has_strength) {
+    blurred = fbos->optimized_blur_buffer;
+  } else {
+    struct fx_render_blur_pass_options blur_options = *fx_options;
+    blur_options.tex_options.base.clip = &reach;
+    blur_options.current_buffer = use_optimized ? fbos->optimized_no_blur_buffer : source;
+    blurred = get_main_buffer_blur(pass, &blur_options, NULL);
+  }
+  fx_framebuffer_bind(pass->buffer);
+  if (blurred == NULL) {
+    // Blur disabled or at zero strength: the program reads the unblurred backdrop for both.
+    blurred = source;
+  }
+
+  blurred_texture = fx_texture_from_buffer(&renderer->wlr_renderer, blurred->buffer);
+  raw_texture = fx_texture_from_buffer(&renderer->wlr_renderer, source->buffer);
+  if (blurred_texture == NULL
+      || raw_texture == NULL
+      || fx_get_texture(blurred_texture)->target != GL_TEXTURE_2D
+      || fx_get_texture(raw_texture)->target != GL_TEXTURE_2D) {
+    pass->animation_failed = true;
+    goto finish;
+  }
+
+  // The surface's own alpha, output-aligned like the backdrop, so the program
+  // can find the edges of the shape it draws (layer surfaces with ignore_alpha).
+  struct wlr_texture* shape_texture = NULL;
+  if (fx_options->ignore_alpha > 0.0F && fx_options->tex_options.base.texture) {
+    struct fx_framebuffer* shape = ensure_offscreen_buffer(pass, &target_buffers(pass)->backdrop_shape, true);
+    if (shape != NULL) {
+      struct fx_framebuffer* saved = pass->buffer;
+      pass->buffer = shape;
+      fx_framebuffer_bind(shape);
+      glDisable(GL_SCISSOR_TEST);
+      glClearColor(0, 0, 0, 0);
+      glClear(GL_COLOR_BUFFER_BIT);
+      struct fx_render_texture_options shape_options = fx_options->tex_options;
+      shape_options.base.clip = NULL;
+      shape_options.base.blend_mode = WLR_RENDER_BLEND_MODE_NONE;
+      shape_options.discard_transparent = 0.0F;
+      fx_render_pass_add_texture(pass, &shape_options);
+      pass->buffer = saved;
+      fx_framebuffer_bind(saved);
+      shape_texture = fx_texture_from_buffer(&renderer->wlr_renderer, shape->buffer);
+    }
+  }
+
+  // As the plain blur does: only where the surface is opaque enough (blur_ignore_alpha).
+  bool masked = false;
+  if (fx_options->ignore_alpha > 0.0F && fx_options->tex_options.base.texture) {
+    masked = stencil_mask_init(pass);
+  }
+  if (masked) {
+    struct fx_render_texture_options mask_options = fx_options->tex_options;
+    mask_options.discard_transparent = fx_options->ignore_alpha;
+    mask_options.clipped_region = fx_options->clipped_region;
+    fx_render_pass_add_texture(pass, &mask_options);
+    stencil_mask_close(true);
+  }
+
+  struct wlr_texture* saved_incoming = pass->workspace_incoming;
+  pass->workspace_incoming = raw_texture;
+  pass->effect_keeps_stencil = masked;
+  pass->backdrop_shape = shape_texture;
+  pass->backdrop_shape_threshold = fx_options->ignore_alpha;
+  draw_animation_texture(
+      pass, blurred_texture, effect->shader, effect->parameters, &box, &box, &effect->logical_box, 0, NULL,
+      effect->corner_radius, NULL, NULL, NULL, WL_OUTPUT_TRANSFORM_NORMAL, clip, NULL, NULL, pass->projection_matrix,
+      true, true
+  );
+  pass->effect_keeps_stencil = false;
+  pass->backdrop_shape = NULL;
+  pass->workspace_incoming = saved_incoming;
+  if (shape_texture != NULL) {
+    wlr_texture_destroy(shape_texture);
+  }
+  if (masked) {
+    stencil_mask_fini();
+  }
+
+finish:
+  if (blurred_texture != NULL) {
+    wlr_texture_destroy(blurred_texture);
+  }
+  if (raw_texture != NULL) {
+    wlr_texture_destroy(raw_texture);
+  }
+  pixman_region32_fini(&reach);
+  fx_framebuffer_bind(pass->buffer);
   pop_fx_debug(renderer);
   TRACY_BOTH_ZONES_END;
 }

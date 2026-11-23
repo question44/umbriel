@@ -409,6 +409,24 @@ namespace umbriel {
   void LayerSurface::updateBlur() {
     const wlr_box box{0, 0, m_layerSurface->surface->current.width, m_layerSurface->surface->current.height};
     m_blur.update(m_scene->tree, m_layerSurface->surface, box, box, corner_radii_none(), nullptr, blurOptions());
+    // A backdrop preset is drawn by the blur node in place of the blur; the blur's alpha mask still shapes it.
+    wlr_scene_blur* node = m_blur.node();
+    if (node == nullptr) {
+      return;
+    }
+    EffectRegistry& registry = effectRegistry();
+    const std::string name = m_rule.backdropEffect.value_or("");
+    fx_effect_shader* shader =
+        !name.empty() && name != "off" ? registry.preset(name, EffectKind::Backdrop) : nullptr;
+    const EffectPreset* preset = shader != nullptr ? registry.presetConfig(name) : nullptr;
+    if (preset == nullptr) {
+      wlr_scene_blur_set_effect(node, nullptr, nullptr, 0);
+      return;
+    }
+    fx_animation_parameters parameters{};
+    parameters.scale = 1.0F;
+    registry.fillTimeUniforms(parameters, 0.0F, *preset, shader);
+    wlr_scene_blur_set_effect(node, shader, &parameters, preset->padding);
   }
 
   void LayerSurface::applyConfig() {

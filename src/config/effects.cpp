@@ -115,6 +115,9 @@ namespace umbriel {
     if (text == "cursor") {
       return EffectKind::Cursor;
     }
+    if (text == "backdrop") {
+      return EffectKind::Backdrop;
+    }
     return std::nullopt;
   }
 
@@ -130,6 +133,8 @@ namespace umbriel {
       return "screen";
     case EffectKind::Cursor:
       return "cursor";
+    case EffectKind::Backdrop:
+      return "backdrop";
     }
     return "effect";
   }

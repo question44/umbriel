@@ -11,6 +11,7 @@ extern "C" {
 }
 
 struct wlr_scene_node;
+struct wlr_scene_blur;
 
 namespace umbriel {
 
@@ -49,9 +50,18 @@ namespace umbriel {
       bool clockAdvancing = true;
       const void* output = nullptr; // the output driving this instance's frames
       wlr_box outputBox{};          // that output's layout box: an instance is visible only inside it
+      wlr_scene_blur* blur = nullptr; // the window's blur node, which draws a backdrop preset
     };
     // True when a border or window preset is selected for this view: the caller reads the clock only then.
-    bool configured() const { return !m_border.empty() || !m_window.empty(); }
+    bool configured() const { return !m_border.empty() || !m_window.empty() || !m_backdrop.empty() || m_backdropBound; }
+    // The backdrop_effect preset name, or empty for none.
+    bool setBackdrop(const std::string& name) {
+      if (m_backdrop == name) {
+        return false;
+      }
+      m_backdrop = name;
+      return true;
+    }
     // True when apply() reads `surface`: a window preset or a border preset with an overlay is selected, or a node of
     // this view is in the ledger.
     bool needsSurface() const { return !m_window.empty() || m_overlay || !m_owners.empty(); }
@@ -66,11 +76,14 @@ namespace umbriel {
     void untrack(const void* owner); // remove from the ledger and forget it; null is a no-op
     void
     applyWindowSlots(const ApplyInput& input, const EffectPreset* border, float borderSeconds, bool borderAdvancing);
+    void applyBackdrop(const ApplyInput& input);
     EffectSlot m_borderSlot;
     EffectSlot m_windowSlot;
     std::string m_border;
     std::string m_window;
     bool m_overlay = false;            // the border preset names an overlay
+    std::string m_backdrop;            // backdrop preset bound to the blur node
+    bool m_backdropBound = false;      // the blur node holds a program to clear
     std::vector<const void*> m_owners; // nodes registered in the ledger
   };
 

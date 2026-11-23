@@ -89,9 +89,13 @@ namespace umbriel {
       return before.windowsDrag == after.windowsDrag;
     }
 
+    bool selectsLayerBackdrop(const std::vector<LayerRule>& rules) {
+      return std::ranges::any_of(rules, [](const LayerRule& rule) { return rule.backdropEffect.has_value(); });
+    }
+
     bool selectsEffect(const std::vector<WindowRule>& rules) {
       return std::ranges::any_of(rules, [](const WindowRule& rule) {
-        return rule.borderEffect.has_value() || rule.windowEffect.has_value();
+        return rule.borderEffect.has_value() || rule.windowEffect.has_value() || rule.backdropEffect.has_value();
       });
     }
 
@@ -252,7 +256,10 @@ namespace umbriel {
             || before.colors != after.colors
             || before.windowRules != after.windowRules
             || focusAppearance,
-        .layerEffects = sceneBlur || before.layerRules != after.layerRules,
+        // A backdrop preset's program changes with its source, so layers that select one rebind on effect edits.
+        .layerEffects = sceneBlur
+            || before.layerRules != after.layerRules
+            || (effectsChanged && (selectsLayerBackdrop(before.layerRules) || selectsLayerBackdrop(after.layerRules))),
         .animation = before.animation != after.animation,
         .input = before.input != after.input || before.hotCorners != after.hotCorners,
         .overviewPresentation = before.overview != after.overview || before.colors != after.colors,

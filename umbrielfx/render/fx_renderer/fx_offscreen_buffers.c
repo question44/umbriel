@@ -77,6 +77,11 @@ static void clear_animation_buffers(struct fx_target_buffers* buffers) {
 
 static void clear_target_buffers(struct fx_target_buffers* buffers) {
   clear_animation_buffers(buffers);
+  // Backdrop buffers live with the target, not the animation: the scene clears
+  // animation buffers on every frame that shows no animation, and reallocating
+  // two output-sized buffers there cost ~0.45 ms CPU and ~1 ms GPU per frame.
+  drop_framebuffer(&buffers->backdrop_source);
+  drop_framebuffer(&buffers->backdrop_shape);
   drop_framebuffer(&buffers->effects_buffer);
   drop_framebuffer(&buffers->effects_buffer_swapped);
 }
