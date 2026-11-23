@@ -2100,6 +2100,24 @@ namespace umbriel {
     m_server->cancelModifierTap();
     cancelHotCorner();
 
+    if (event->source == WL_POINTER_AXIS_SOURCE_FINGER) {
+      const Overview* overview = m_server->overview();
+      const bool inOverview = overview != nullptr && overview->active();
+      if (event->delta == 0) {
+        // libinput's scroll stop: the fingers lifted. A dropped scroll stays dropped through its stop.
+        const bool dropped = m_fingerScrolling && inOverview != m_fingerScrollInOverview;
+        m_fingerScrolling = false;
+        if (dropped) {
+          return;
+        }
+      } else if (!m_fingerScrolling) {
+        m_fingerScrolling = true;
+        m_fingerScrollInOverview = inOverview;
+      } else if (inOverview != m_fingerScrollInOverview) {
+        return;
+      }
+    }
+
     const uint32_t modifiers = m_server->keyboardModifiers();
     const uint32_t effective = modifiers & ~(WLR_MODIFIER_CAPS | WLR_MODIFIER_MOD2);
 

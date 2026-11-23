@@ -470,6 +470,10 @@ namespace umbriel {
     // Last layout output under the pointer; crossing heads updates seat focus like workspace switch.
     wlr_output* m_pointerOutput = nullptr;
     double m_wheelAccum[2]{};
+    // A two-finger scroll stays with what it started on: while one is in flight, whether the overview was up when it
+    // began. When the overview opens or closes under the fingers, the rest of that scroll is dropped until they lift.
+    bool m_fingerScrolling = false;
+    bool m_fingerScrollInOverview = false;
     // Presses consumed by config binds or ignored during an interactive move;
     // their release is swallowed too, even if the grab ended first.
     std::vector<uint32_t> m_swallowedButtons;
