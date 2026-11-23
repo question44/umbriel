@@ -138,28 +138,28 @@ vec4 animation(vec2 uv) {
         preset(m_server->cursorEffectSlot().effectiveName(), EffectKind::Cursor) != nullptr && !m_ledger.suspended();
   }
 
-  void EffectRegistry::updateRipplesWanted() {
-    m_ripplesWanted = !m_ledger.suspended() && std::ranges::any_of(m_programs, [](const auto& item) {
+  void EffectRegistry::updatePointerLightWanted() {
+    m_pointerLightWanted = !m_ledger.suspended() && std::ranges::any_of(m_programs, [](const auto& item) {
       return item.second.kind == EffectKind::Backdrop
           && item.second.shader != nullptr
-          && fx_effect_shader_reads(item.second.shader.get(), "umbriel_ripples");
+          && fx_effect_shader_reads(item.second.shader.get(), "umbriel_pointer_light");
     });
-    // The first prepare() runs before the scene exists; rippleInput() applies the choice then.
+    // The first prepare() runs before the scene exists; pointerLight() applies the choice then.
     if (wlr_scene* scene = m_server->scene(); scene != nullptr) {
-      wlr_scene_set_ripples_enabled(scene, m_ripplesWanted);
+      wlr_scene_set_pointer_light_enabled(scene, m_pointerLightWanted);
     }
   }
 
-  void EffectRegistry::rippleInput(double lx, double ly, bool click) {
+  void EffectRegistry::pointerLight(double lx, double ly, bool visible) {
     wlr_scene* scene = m_server->scene();
     if (scene == nullptr) {
       return;
     }
-    wlr_scene_set_ripples_enabled(scene, m_ripplesWanted);
-    const bool before = wlr_scene_ripples_active(scene);
-    wlr_scene_ripple_set_time(scene, m_server->animationClockMsec());
-    wlr_scene_ripple_add(scene, lx, ly, click);
-    if (!before && wlr_scene_ripples_active(scene)) {
+    wlr_scene_set_pointer_light_enabled(scene, m_pointerLightWanted);
+    const bool before = wlr_scene_pointer_light_animating(scene);
+    wlr_scene_pointer_light_set_time(scene, m_server->animationClockMsec());
+    wlr_scene_pointer_light_move(scene, lx, ly, visible);
+    if (!before && wlr_scene_pointer_light_animating(scene)) {
       applyOutputEffects();
     }
   }
@@ -177,7 +177,7 @@ vec4 animation(vec2 uv) {
   void EffectRegistry::setSuspended(bool suspended) {
     m_ledger.setSuspended(suspended);
     updateCursorActive();
-    updateRipplesWanted();
+    updatePointerLightWanted();
   }
 
   void EffectRegistry::removeOutput(const Output* output) {
@@ -290,7 +290,7 @@ vec4 animation(vec2 uv) {
           && item.second.shader != nullptr;
     });
     updateCursorActive();
-    updateRipplesWanted();
+    updatePointerLightWanted();
     const bool fadeNeeded = builtinFadeApplies(settings.animation, AnimationEvent::WindowsIn)
         || builtinFadeApplies(settings.animation, AnimationEvent::WindowsOut);
     if (fadeNeeded && m_builtinFade == nullptr) {

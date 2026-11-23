@@ -1039,26 +1039,19 @@ static void scene_output_damage(struct wlr_scene_output* scene_output, const pix
 static void scale_region(pixman_region32_t* region, float scale, bool round_up);
 static void output_to_buffer_coords(pixman_region32_t* damage, struct wlr_output* output);
 
-// Damages the box every live ring can reach, on each output.
-static void scene_ripples_damage(struct wlr_scene* scene) {
-  if (scene->ripple_count == 0) {
+// Damages the area the pointer light can reach around its position, on each output.
+static void scene_pointer_light_damage(struct wlr_scene* scene) {
+  if (!scene->pointer_light.has) {
     return;
   }
-  double x0 = scene->ripples[0].x, y0 = scene->ripples[0].y, x1 = x0, y1 = y0;
-  for (unsigned i = 1; i < scene->ripple_count; ++i) {
-    x0 = fmin(x0, scene->ripples[i].x);
-    y0 = fmin(y0, scene->ripples[i].y);
-    x1 = fmax(x1, scene->ripples[i].x);
-    y1 = fmax(y1, scene->ripples[i].y);
-  }
+  const double x = scene->pointer_light.x, y = scene->pointer_light.y;
   struct wlr_scene_output* output;
   wl_list_for_each(output, &scene->outputs, link) {
-    const int left = (int)floor(x0) - WLR_SCENE_RIPPLE_REACH - output->x;
-    const int top = (int)floor(y0) - WLR_SCENE_RIPPLE_REACH - output->y;
-    const int right = (int)ceil(x1) + WLR_SCENE_RIPPLE_REACH - output->x;
-    const int bottom = (int)ceil(y1) + WLR_SCENE_RIPPLE_REACH - output->y;
+    const int left = (int)floor(x) - WLR_SCENE_POINTER_LIGHT_REACH - output->x;
+    const int top = (int)floor(y) - WLR_SCENE_POINTER_LIGHT_REACH - output->y;
+    const int size = 2 * WLR_SCENE_POINTER_LIGHT_REACH + 2;
     pixman_region32_t damage;
-    pixman_region32_init_rect(&damage, left, top, (unsigned)(right - left), (unsigned)(bottom - top));
+    pixman_region32_init_rect(&damage, left, top, (unsigned)size, (unsigned)size);
     scale_region(&damage, output->output->scale, true);
     output_to_buffer_coords(&damage, output->output);
     scene_output_damage(output, &damage);
@@ -1066,26 +1059,36 @@ static void scene_ripples_damage(struct wlr_scene* scene) {
   }
 }
 
-// The samples whose rings can reach a node at (lx, ly) of the given size, in its uv.
-static void scene_ripples_for_node(
+// 1 while the pointer moves and for the hold after, easing to 0; 0 while hidden.
+static float scene_pointer_light_activity(const struct wlr_scene* scene) {
+  if (!scene->pointer_light.has || !scene->pointer_light.visible) {
+    return 0.0F;
+  }
+  const uint64_t idle =
+      scene->pointer_light.time > scene->pointer_light.moved ? scene->pointer_light.time - scene->pointer_light.moved : 0;
+  if (idle <= WLR_SCENE_POINTER_LIGHT_HOLD_MS) {
+    return 1.0F;
+  }
+  if (idle >= WLR_SCENE_POINTER_LIGHT_HOLD_MS + WLR_SCENE_POINTER_LIGHT_FADE_MS) {
+    return 0.0F;
+  }
+  const float t = (float)(idle - WLR_SCENE_POINTER_LIGHT_HOLD_MS) / (float)WLR_SCENE_POINTER_LIGHT_FADE_MS;
+  return 1.0F - t * t * (3.0F - 2.0F * t);
+}
+
+// The pointer light in the uv of a node at (lx, ly) of the given size.
+static void scene_pointer_light_for_node(
     const struct wlr_scene* scene, int lx, int ly, int width, int height, struct fx_cursor_path* out
 ) {
   out->count = 0;
-  const double reach = WLR_SCENE_RIPPLE_REACH;
-  for (unsigned i = 0; i < scene->ripple_count && out->count < 64; ++i) {
-    const struct wlr_scene_ripple* sample = &scene->ripples[i];
-    if (sample->x < lx - reach
-        || sample->y < ly - reach
-        || sample->x > lx + width + reach
-        || sample->y > ly + height + reach) {
-      continue;
-    }
-    float* point = out->points[out->count++];
-    point[0] = (float)((sample->x - lx) / width);
-    point[1] = (float)((sample->y - ly) / height);
-    point[2] = scene->ripple_time >= sample->time ? (float)(scene->ripple_time - sample->time) / 1000.0F : 0.0F;
-    point[3] = sample->kind;
+  if (!scene->pointer_light.has) {
+    return;
   }
+  float* point = out->points[out->count++];
+  point[0] = (float)((scene->pointer_light.x - lx) / width);
+  point[1] = (float)((scene->pointer_light.y - ly) / height);
+  point[2] = scene_pointer_light_activity(scene);
+  point[3] = scene->pointer_light.visible ? 1.0F : 0.0F;
 }
 
 static void scene_output_damage(struct wlr_scene_output* scene_output, const pixman_region32_t* damage) {
@@ -4225,13 +4228,13 @@ static void scene_entry_render(struct render_list_entry* entry, const struct ren
     if (blur->effect != NULL) {
       struct fx_corner_radii effect_corners = backdrop_effect_corners(blur);
       fx_corner_radii_transform(node_transform, &effect_corners);
-      struct fx_cursor_path ripples = {0};
-      const bool reads_ripples = fx_effect_shader_reads(blur->effect, "umbriel_ripples");
-      if (reads_ripples && blur->width > 0 && blur->height > 0) {
-        scene_ripples_for_node(scene, entry->x, entry->y, blur->width, blur->height, &ripples);
+      struct fx_cursor_path pointer_light = {0};
+      const bool reads_light = fx_effect_shader_reads(blur->effect, "umbriel_pointer_light");
+      if (reads_light && blur->width > 0 && blur->height > 0) {
+        scene_pointer_light_for_node(scene, entry->x, entry->y, blur->width, blur->height, &pointer_light);
       }
       struct fx_backdrop_effect effect = {
-          .ripples = reads_ripples ? &ripples : NULL,
+          .pointer_light = reads_light ? &pointer_light : NULL,
           .shader = blur->effect,
           .parameters = &blur->effect_parameters,
           .logical_box = {.width = blur->width, .height = blur->height},
@@ -5159,63 +5162,57 @@ static void output_effects_damage_cursor(struct scene_output_effects* effects) {
   pixman_region32_fini(&damage);
 }
 
-void wlr_scene_set_ripples_enabled(struct wlr_scene* scene, bool enabled) {
-  if (scene->ripples_enabled == enabled) {
+void wlr_scene_set_pointer_light_enabled(struct wlr_scene* scene, bool enabled) {
+  if (scene->pointer_light.enabled == enabled) {
     return;
   }
-  scene->ripples_enabled = enabled;
+  scene->pointer_light.enabled = enabled;
   if (!enabled) {
-    scene_ripples_damage(scene);
-    scene->ripple_count = 0;
+    scene_pointer_light_damage(scene);
+    scene->pointer_light.has = false;
   }
 }
 
-void wlr_scene_ripple_set_time(struct wlr_scene* scene, uint64_t msec) {
-  if (scene->ripple_time == msec) {
+void wlr_scene_pointer_light_set_time(struct wlr_scene* scene, uint64_t msec) {
+  scene->pointer_light.time = msec;
+  if (!scene->pointer_light.enabled || !scene->pointer_light.has) {
     return;
   }
-  // The reach box covers every ring at any age, so one damage per step covers
-  // the rings' old and new extents alike.
-  scene_ripples_damage(scene);
-  unsigned expired = 0;
-  while (expired < scene->ripple_count
-         && (msec < scene->ripples[expired].time || msec - scene->ripples[expired].time >= WLR_SCENE_RIPPLE_LIFE_MS)) {
-    ++expired;
+  const float activity = scene_pointer_light_activity(scene);
+  if (activity != scene->pointer_light.activity) {
+    scene->pointer_light.activity = activity;
+    scene_pointer_light_damage(scene);
   }
-  scene->ripple_count -= expired;
-  memmove(scene->ripples, scene->ripples + expired, scene->ripple_count * sizeof(scene->ripples[0]));
-  scene->ripple_time = msec;
 }
 
-void wlr_scene_ripple_add(struct wlr_scene* scene, double lx, double ly, bool click) {
-  if (!scene->ripples_enabled) {
+void wlr_scene_pointer_light_move(struct wlr_scene* scene, double lx, double ly, bool visible) {
+  if (!scene->pointer_light.enabled) {
     return;
   }
-  unsigned count = scene->ripple_count;
-  const struct wlr_scene_ripple* last = count > 0 ? &scene->ripples[count - 1] : NULL;
-  if (!click && last != NULL && last->kind == 0.0F && last->x == lx && last->y == ly) {
-    return;
+  const bool moved =
+      !scene->pointer_light.has || scene->pointer_light.x != lx || scene->pointer_light.y != ly;
+  if (moved || scene->pointer_light.visible != visible) {
+    scene_pointer_light_damage(scene); // the old lit area
   }
-  // Keep the newest motion event while spacing older samples by about one 30 Hz frame; clicks always stay.
-  if (!click
-      && count >= 2
-      && last->kind == 0.0F
-      && scene->ripples[count - 2].kind == 0.0F
-      && scene->ripple_time - scene->ripples[count - 2].time < 32) {
-    --count;
+  scene->pointer_light.x = lx;
+  scene->pointer_light.y = ly;
+  scene->pointer_light.visible = visible;
+  scene->pointer_light.has = true;
+  scene->pointer_light.moved = scene->pointer_light.time;
+  const float activity = scene_pointer_light_activity(scene);
+  if (moved || activity != scene->pointer_light.activity) {
+    scene_pointer_light_damage(scene);
   }
-  if (count == WLR_SCENE_RIPPLES_MAX) {
-    memmove(scene->ripples, scene->ripples + 1, (WLR_SCENE_RIPPLES_MAX - 1) * sizeof(scene->ripples[0]));
-    --count;
-  }
-  scene->ripples[count] =
-      (struct wlr_scene_ripple){.x = lx, .y = ly, .time = scene->ripple_time, .kind = click ? 1.0F : 0.0F};
-  scene->ripple_count = count + 1;
-  scene_ripples_damage(scene);
+  scene->pointer_light.activity = activity;
 }
 
-bool wlr_scene_ripples_active(const struct wlr_scene* scene) {
-  return scene->ripples_enabled && scene->ripple_count > 0;
+bool wlr_scene_pointer_light_animating(const struct wlr_scene* scene) {
+  const uint64_t idle =
+      scene->pointer_light.time > scene->pointer_light.moved ? scene->pointer_light.time - scene->pointer_light.moved : 0;
+  return scene->pointer_light.enabled
+      && scene->pointer_light.has
+      && scene->pointer_light.visible
+      && idle < WLR_SCENE_POINTER_LIGHT_HOLD_MS + WLR_SCENE_POINTER_LIGHT_FADE_MS;
 }
 
 bool wlr_scene_output_cursor_motion_active(struct wlr_scene_output* output) {

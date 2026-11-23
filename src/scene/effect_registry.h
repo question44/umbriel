@@ -86,9 +86,9 @@ namespace umbriel {
     void applyOutputEffects();
     // Forwards the pointer to every output's cursor slot; call only while cursorEffectActive().
     void pointerMoved(double lx, double ly, bool visible);
-    // Records a pointer ripple sample (motion or click) for backdrop programs that read umbriel_ripples, and starts
-    // effect frames when ripples begin. Cheap no-op while no compiled backdrop program reads them.
-    void rippleInput(double lx, double ly, bool click);
+    // Moves the pointer light for backdrop programs that read umbriel_pointer_light (visible: the cursor is shown),
+    // and starts effect frames while its activity can change. Cheap no-op while no compiled backdrop program reads it.
+    void pointerLight(double lx, double ly, bool visible);
     // The output layout changed: the next pointerMoved() re-applies every output.
     void forgetPointerOutput() { m_pointerWlrOutput = nullptr; }
 
@@ -101,7 +101,7 @@ namespace umbriel {
     void compile(const EffectPreset& preset);
     void referencedNames(std::vector<std::string>& names) const;
     void updateCursorActive();
-    void updateRipplesWanted();
+    void updatePointerLightWanted();
     // Forgets the deformation program so the next prepare() that needs it compiles afresh.
     void dropDeformation();
 
@@ -114,7 +114,7 @@ namespace umbriel {
     bool m_persistentReferenced = false;
     bool m_inPlaceReferenced = false;
     bool m_cursorActive = false;
-    bool m_ripplesWanted = false; // a compiled backdrop program reads umbriel_ripples
+    bool m_pointerLightWanted = false; // a compiled backdrop program reads umbriel_pointer_light
     unsigned m_retainedPersistent = 0;
     unsigned m_retainedInPlace = 0;
     unsigned m_retainedLight = 0;

@@ -123,8 +123,8 @@ struct fx_backdrop_effect {
   struct wlr_box logical_box; // node box, logical
   float corner_radius[4];     // tl, tr, br, bl logical px
   int padding;                // buffer px the program may sample past the node box
-  // Pointer ripples in node uv (age seconds, kind); NULL when the program does not read them.
-  const struct fx_cursor_path* ripples;
+  // Pointer light in node uv (one point: x, y, activity, visible); NULL when the program does not read it.
+  const struct fx_cursor_path* pointer_light;
 };
 
 // Blurs the target under the node (dst_box of the options) and its padding,

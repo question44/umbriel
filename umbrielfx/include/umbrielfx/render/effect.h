@@ -241,22 +241,24 @@ bool wlr_scene_output_cursor_motion_active(struct wlr_scene_output* output);
 // cursor effect and resets its history.
 void wlr_scene_output_set_effect_pointer(struct wlr_scene_output* output, double lx, double ly, bool visible);
 
-// Pointer ripples for backdrop programs that read `umbriel_ripples`: motion
-// samples (spaced about 32 ms apart) and clicks in layout coordinates, kept for
-// WLR_SCENE_RIPPLE_LIFE_MS. Each backdrop node receives the ones that can
-// reach it, in its own uv, with age in seconds and kind (0 motion, 1 click).
+// Pointer light for backdrop programs that read `umbriel_pointer_light`: the
+// pointer in each backdrop node's uv (xy), its activity (z: 1 while it moves
+// and for WLR_SCENE_POINTER_LIGHT_HOLD_MS after, then easing to 0 over
+// WLR_SCENE_POINTER_LIGHT_FADE_MS) and whether the cursor is shown (w).
 // Nothing is recorded while disabled.
-#define WLR_SCENE_RIPPLE_LIFE_MS 2000u
-// Logical px a ring may reach from its sample; damage covers this much.
-#define WLR_SCENE_RIPPLE_REACH 420
-void wlr_scene_set_ripples_enabled(struct wlr_scene* scene, bool enabled);
-// Advances the ripple clock (animation clock, msec): damages the rings' reach
-// and drops expired samples.
-void wlr_scene_ripple_set_time(struct wlr_scene* scene, uint64_t msec);
-// Records a sample at the current ripple time.
-void wlr_scene_ripple_add(struct wlr_scene* scene, double lx, double ly, bool click);
-// True while enabled and a sample remains, so frames are needed.
-bool wlr_scene_ripples_active(const struct wlr_scene* scene);
+#define WLR_SCENE_POINTER_LIGHT_HOLD_MS 3000u
+#define WLR_SCENE_POINTER_LIGHT_FADE_MS 1500u
+// Logical px a program may light around the pointer; damage covers this much.
+#define WLR_SCENE_POINTER_LIGHT_REACH 420
+void wlr_scene_set_pointer_light_enabled(struct wlr_scene* scene, bool enabled);
+// Advances the pointer light clock (animation clock, msec); damages the lit
+// area while the activity changes.
+void wlr_scene_pointer_light_set_time(struct wlr_scene* scene, uint64_t msec);
+// Records the pointer at the current pointer light time; damages the old and
+// new lit areas.
+void wlr_scene_pointer_light_move(struct wlr_scene* scene, double lx, double ly, bool visible);
+// True while the activity can still change, so frames are needed.
+bool wlr_scene_pointer_light_animating(const struct wlr_scene* scene);
 
 // Exist for tests/effects.c: damage the whole output, and acknowledge a built
 // state's damage the way a commit of its buffer does.

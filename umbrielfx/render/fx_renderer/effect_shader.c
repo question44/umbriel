@@ -146,14 +146,13 @@ static const char kBackdropPrefix[] = "#define UMBRIEL_UNBOUNDED 1\n";
 // umbriel_shape: coverage of the surface's own drawn shape (alpha past the
 // blur's ignore_alpha threshold) in the same coordinates as umbriel_sample,
 // 0 outside it. Without a shape (windows) it is 1 inside the drawn rectangle.
-// umbriel_ripples: pointer motion samples and clicks of the last two seconds in
-// the node's uv, oldest first: xy position, z age in seconds, w kind (0 motion,
-// 1 click). Only the first umbriel_ripple_count entries are set. Shaders test
-// UMBRIEL_RIPPLES so they also compile on a compositor without them.
+// umbriel_pointer_light: the pointer in the node's uv (xy), its activity (z:
+// 1 while it moves and shortly after, easing to 0 when idle) and whether the
+// cursor is shown (w; all 0 before the first move). Shaders test
+// UMBRIEL_POINTER_LIGHT so they also compile on a compositor without it.
 static const char kBackdropSection[] =
-    "#define UMBRIEL_RIPPLES 1\n"
-    "uniform int umbriel_ripple_count;\n"
-    "uniform vec4 umbriel_ripples[64];\n"
+    "#define UMBRIEL_POINTER_LIGHT 1\n"
+    "uniform vec4 umbriel_pointer_light;\n"
     "vec4 umbriel_sample_raw(vec2 uv) { return umbriel_sample_incoming(uv); }\n"
     "uniform sampler2D umbriel_shape_texture;\n"
     "uniform float umbriel_shape_available;\n"

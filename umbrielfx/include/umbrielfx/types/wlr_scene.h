@@ -153,15 +153,6 @@ enum wlr_scene_glass_light_mode {
 };
 
 /** The root scene-graph node. */
-// One pointer sample or click for backdrop programs that read umbriel_ripples.
-struct wlr_scene_ripple {
-  double x, y;   // layout coordinates
-  uint64_t time; // animation clock, msec
-  float kind;    // 0 motion, 1 click
-};
-
-#define WLR_SCENE_RIPPLES_MAX 64
-
 struct wlr_scene {
   struct wlr_scene_tree tree;
 
@@ -198,11 +189,16 @@ struct wlr_scene {
     size_t capture_protected_nodes;
     bool capture_policy_failed;
 
-    // Pointer ripples (wlr_scene_ripple_add), oldest first.
-    struct wlr_scene_ripple ripples[WLR_SCENE_RIPPLES_MAX];
-    unsigned ripple_count;
-    uint64_t ripple_time;
-    bool ripples_enabled;
+    // Pointer light for backdrop programs (wlr_scene_pointer_light_*).
+    struct {
+      double x, y;    // layout coordinates
+      uint64_t moved; // animation clock msec of the last move
+      uint64_t time;  // animation clock msec
+      float activity; // the activity last damaged for
+      bool visible;   // the cursor is shown
+      bool has;       // a position was recorded
+      bool enabled;   // a compiled backdrop program reads it
+    } pointer_light;
   } WLR_PRIVATE;
 };
 
