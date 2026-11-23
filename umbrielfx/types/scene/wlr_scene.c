@@ -3506,6 +3506,30 @@ static bool excluded_from_backdrop(struct wlr_scene_node* node, const void* grou
   return owner != NULL && owner != group;
 }
 
+// The rounding a backdrop effect draws in, in node coordinates before the node
+// transform. A window's blur takes its shape from the surface's rounded corner
+// box (clipped_region, inside) and leaves its own radii at zero, which the plain
+// blur honors but an effect would draw as a square. Use the clip's radius at each
+// corner the clip box shares with the node; corners it does not share (the top
+// of a window under a title bar) stay square, as the content's seam is.
+static struct fx_corner_radii backdrop_effect_corners(const struct wlr_scene_blur* blur) {
+  struct fx_corner_radii corners = blur->corners;
+  const struct clipped_region* region = &blur->clipped_region;
+  if (!region->inside || wlr_box_empty(&region->area) || !fx_corner_radii_is_empty(&corners)) {
+    return corners;
+  }
+  const struct wlr_box a = region->area;
+  const bool left = abs(a.x) <= 1;
+  const bool top = abs(a.y) <= 1;
+  const bool right = abs(a.x + a.width - blur->width) <= 1;
+  const bool bottom = abs(a.y + a.height - blur->height) <= 1;
+  corners.top_left = left && top ? region->corners.top_left : 0;
+  corners.top_right = right && top ? region->corners.top_right : 0;
+  corners.bottom_right = right && bottom ? region->corners.bottom_right : 0;
+  corners.bottom_left = left && bottom ? region->corners.bottom_left : 0;
+  return corners;
+}
+
 static void scene_entry_render(struct render_list_entry* entry, const struct render_data* data) {
   struct wlr_scene_node* node = entry->node;
   // Backdrop effects are not part of a window's shadow caster. Shadows are
@@ -4014,12 +4038,14 @@ static void scene_entry_render(struct render_list_entry* entry, const struct ren
         },
     };
     if (blur->effect != NULL) {
+      struct fx_corner_radii effect_corners = backdrop_effect_corners(blur);
+      fx_corner_radii_transform(node_transform, &effect_corners);
       struct fx_backdrop_effect effect = {
           .shader = blur->effect,
           .parameters = &blur->effect_parameters,
           .logical_box = {.width = blur->width, .height = blur->height},
-          .corner_radius = {blur_corners.top_left, blur_corners.top_right, blur_corners.bottom_right,
-                            blur_corners.bottom_left},
+          .corner_radius = {effect_corners.top_left, effect_corners.top_right, effect_corners.bottom_right,
+                            effect_corners.bottom_left},
           .padding = (int)ceilf((float)blur->effect_padding * data->scale),
       };
       fx_render_pass_add_blur_effect(fx_pass, &blur_options, &effect);
